@@ -13,8 +13,13 @@ namespace api.Models
         public string FullName { get; set; } = string.Empty;
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
+        //A user can have many workspaces and a workspace can have many users- WOrkspaceMembers handles this
+        public List<WorkspaceMember> WorkspaceMembers { get; set; } = new List<WorkspaceMember>();
+        public List<Task> Tasks { get; set; } = new List<Task>();
+        public List<Comment> Comments { get; set; } = new List<Comment>();
+
         // refresh-token fields
-        public string? RefreshToken { get; set; }
-        public DateTime RefreshTokenExpiryTime { get; set; }
+        public string RefreshToken { get; set; } = string.Empty;
+        public DateTime? RefreshTokenExpiryTime { get; set; }
     }
 }
