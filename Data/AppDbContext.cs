@@ -20,7 +20,7 @@ namespace api.Data
         List<IdentityRole> roles = new()
         {
             new IdentityRole { Name = "Admin", NormalizedName = "ADMIN" },
-            new IdentityRole { Name = "Member", NormalizedName = "MEMBER"}
+            new IdentityRole { Name = "User", NormalizedName = "USER"}
         };
         builder.Entity<IdentityRole>().HasData(roles);
         }

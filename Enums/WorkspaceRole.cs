@@ -1,8 +1,8 @@
 namespace api.Enums
 {
-    public enum UserRole
+    public enum WorkspaceRole
     {
         Admin,
-        User
+        Member
     }
 }
