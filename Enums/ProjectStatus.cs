@@ -6,6 +6,7 @@ namespace api.Enums
         Active,
         Paused,
         Completed,
-        Cancelled
+        Cancelled,
+        Archived // used for "soft delete"
     }
 }

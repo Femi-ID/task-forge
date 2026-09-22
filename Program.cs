@@ -1,7 +1,10 @@
+using System.Text;
 using api.Data;
 using api.Models;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -15,7 +18,8 @@ builder.Services.AddControllers();
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-builder.Services.AddIdentity<AppUser, IdentityRole>(options =>
+// Identity with Guid keys. The role type must match the one used in AppDbContext.
+builder.Services.AddIdentity<AppUser, IdentityRole<Guid>>(options =>
 {
     options.Password.RequireDigit = true;
     options.Password.RequireLowercase = true;
@@ -26,10 +30,34 @@ builder.Services.AddIdentity<AppUser, IdentityRole>(options =>
     // Optional, but standard — pairs with AccessFailedCount/LockoutEnd above
     options.Lockout.MaxFailedAccessAttempts = 5;
     options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(5);
+
+    options.User.RequireUniqueEmail = true;   // Identity does NOT enforce unique emails by default
 })
 .AddEntityFrameworkStores<AppDbContext>()
 .AddDefaultTokenProviders(); // needed for password-reset / email-confirmation tokens later
 
+// AddIdentity registers COOKIE auth as the default scheme. For a JWT API we must
+// override the defaults, otherwise [Authorize] redirects to /Account/Login instead of returning 401.
+// builder.Services.AddAuthentication(options =>
+// {
+//     options.DefaultScheme = JwtBearerDefaults.AuthenticationScheme;
+//     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+//     options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+// })
+// .AddJwtBearer(options =>
+// {
+//     options.TokenValidationParameters = new TokenValidationParameters
+//     {
+//         ValidateIssuer = true,
+//         ValidIssuer = builder.Configuration["JWT:Issuer"],
+//         ValidateAudience = true,
+//         ValidAudience = builder.Configuration["JWT:Audience"],
+//         ValidateIssuerSigningKey = true,
+//         IssuerSigningKey = new SymmetricSecurityKey(
+//             Encoding.UTF8.GetBytes(builder.Configuration["JWT:SigningKey"]
+//                 ?? throw new InvalidOperationException("JWT:SigningKey is not configured.")))
+//     };
+// });
 
 var app = builder.Build();
 
@@ -42,29 +70,8 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-var summaries = new[]
-{
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
-
-app.MapGet("/weatherforecast", () =>
-{
-    var forecast = Enumerable.Range(1, 5).Select(index =>
-        new WeatherForecast
-        (
-            DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-            Random.Shared.Next(-20, 55),
-            summaries[Random.Shared.Next(summaries.Length)]
-        ))
-        .ToArray();
-    return forecast;
-})
-.WithName("GetWeatherForecast");
+app.UseAuthentication();   // must come BEFORE UseAuthorization
+app.UseAuthorization();
 
 app.MapControllers();
 app.Run();
-
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
-{
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
-}

@@ -10,8 +10,8 @@ namespace api.Models
         public Guid Id { get; set; }
         public required string Name { get; set; }
         public required string Colour { get; set; }
-        public required string WorkspaceId { get; set; }
-        public required Workspace Workspace { get; set; }
+        public Guid WorkspaceId { get; set; }
+        public Workspace Workspace { get; set; } = null!;
         public List<TaskLabel> TaskLabels { get; set; } = new List<TaskLabel>();
     }
 }
