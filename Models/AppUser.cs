@@ -6,20 +6,19 @@ using Microsoft.AspNetCore.Identity;
 
 namespace api.Models
 {
-    public class AppUser : IdentityUser
+    public class AppUser : IdentityUser<Guid>
     {
         // custom fields
-        public Guid Uuid { get; set; }
-        public string FullName { get; set; } = string.Empty;
+        public required string FullName { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
         //A user can have many workspaces and a workspace can have many users- WOrkspaceMembers handles this
-        public List<WorkspaceMember> WorkspaceMembers { get; set; } = new List<WorkspaceMember>();
-        public List<Task> Tasks { get; set; } = new List<Task>();
+        public List<WorkspaceMember> WorkspaceMembers { get; set; } = [];
+        public List<TaskItem> AssignedTasks { get; set; } = new List<TaskItem>();
         public List<Comment> Comments { get; set; } = new List<Comment>();
 
         // refresh-token fields
-        public string RefreshToken { get; set; } = string.Empty;
+        public string? RefreshToken { get; set; }
         public DateTime? RefreshTokenExpiryTime { get; set; }
     }
 }

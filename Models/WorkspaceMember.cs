@@ -8,10 +8,13 @@ namespace api.Models
 {
     public class WorkspaceMember // this is a join table of users and workspaces
     {
-        public required string AppUserId { get; set; }
-        public required AppUser AppUser { get; set; }
-        public required string WorkspaceId { get; set; }
-        public required Workspace Workspace { get; set; }
-        public WorkspaceRole Role { get; set; }
+        public Guid AppUserId { get; set; }
+        public AppUser AppUser { get; set; } = null!;
+
+        public Guid WorkspaceId { get; set; }
+        public Workspace Workspace { get; set; } = null!;
+
+        public WorkspaceRole Role { get; set; } = WorkspaceRole.Member;
+        public DateTime JoinedAt { get; set; } = DateTime.UtcNow;
     }
 }

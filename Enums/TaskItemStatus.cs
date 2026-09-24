@@ -1,6 +1,6 @@
 namespace api.Enums
 {
-    public enum Task_Status
+    public enum TaskItemStatus
     {
         Todo,
         InProgress,

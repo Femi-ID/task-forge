@@ -6,15 +6,16 @@ using api.Enums;
 
 namespace api.Models
 {
-    public class Project
+    public class Project: IUpdatable
     {
         public Guid Id { get; set; }
         public required string Name { get; set; }
-        public required string Description { get; set; }
-        public ProjectStatus Status { get; set; }
-         public required string WorkspaceId { get; set; }
-        public required Workspace Workspace { get; set; }
-        public List<Task> Tasks { get; set; } = new List<Task>();
-        public DateTime CreatedAt { get; set; } = DateTime.Now;
+        public string? Description { get; set; }
+        public ProjectStatus Status { get; set; } = ProjectStatus.NotStarted;
+         public Guid WorkspaceId { get; set; }
+        public Workspace Workspace { get; set; } = null!;
+        public List<TaskItem> Tasks { get; set; } = new List<TaskItem>();
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime? UpdatedAt { get; set; }
     }
 }

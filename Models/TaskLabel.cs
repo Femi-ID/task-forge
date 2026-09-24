@@ -7,9 +7,9 @@ namespace api.Models
 {
     public class TaskLabel
     {
-        public required string TaskId { get; set; }
-        public required Task Task { get; set; }
-        public required string LabelId { get; set; }
-        public required Label Label { get; set; }
+        public Guid TaskItemId { get; set; }
+        public TaskItem TaskItem { get; set; } = null!;
+        public Guid LabelId { get; set; }
+        public Label Label { get; set; } = null!;
     }
 }
