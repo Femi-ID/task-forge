@@ -16,7 +16,8 @@ namespace api.Mappers
             {
                 AppUserId = userId,
                 WorkspaceId = workspaceId,
-                Role = role
+                Role = role,
+                JoinedAt = DateTime.UtcNow
             };
         }
     }

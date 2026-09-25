@@ -9,9 +9,6 @@ namespace api.Dtos.WorkspaceMember
     public class CreateWorkspaceMemberDto
     {
         public Guid AppUserId { get; set; }
-
-        public Guid WorkspaceId { get; set; }
-
-        public WorkspaceRole Role { get; set; } = WorkspaceRole.Admin;
+        public WorkspaceRole Role { get; set; } = WorkspaceRole.Member;
     }
 }
