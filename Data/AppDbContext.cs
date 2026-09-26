@@ -61,6 +61,9 @@ namespace api.Data
                 e.HasOne(w => w.Owner).WithMany()
                  .HasForeignKey(w => w.OwnerId)
                  .OnDelete(DeleteBehavior.Restrict);
+
+                // ensure the Name field is unique for each user
+                e.HasIndex(w => new { w.OwnerId, w.Name }).IsUnique();
             });
 
             // WorkspaceMember
