@@ -12,13 +12,12 @@ namespace api.Interfaces
 {
     public interface IWorkspace
     {
-        Task<Workspace> CreateWorkspaceAsync(CreateWorkspaceDto workspaceDto, Guid userId);
-        Task<List<Workspace>> GetAllWorkspacesAsync(WorkspaceQueryObject query, Guid userId);
-        Task<Workspace?> GetWorkspaceByIdAsync(Guid Id, Guid userId);
-        Task<Workspace?> UpdateWorkspaceAsync(Guid Id, UpdateWorkspaceDto updateDto, Guid userId);
-        Task<bool> DeleteWorkspaceAsync(Guid Id, Guid OwnerId);
+        Task<Result<Workspace>> CreateWorkspaceAsync(CreateWorkspaceDto workspaceDto, Guid userId);
+        Task<Result<List<Workspace>>> GetAllWorkspacesAsync(WorkspaceQueryObject query, Guid userId);
+        Task<Result<Workspace?>> GetWorkspaceByIdAsync(Guid Id, Guid userId);
+        Task<Result<Workspace?>> UpdateWorkspaceAsync(Guid Id, UpdateWorkspaceDto updateDto, Guid userId);
+        Task<Result<bool>> DeleteWorkspaceAsync(Guid Id, Guid userId);
         Task<Workspace?> GetTrackedWorkspaceAsync(Guid Id);
-        // IWorkspace
         Task<Result<WorkspaceMember>> AddWorkspaceMemberAsync(Guid workspaceId, Guid requestingUserId, CreateWorkspaceMemberDto dto);
     }
 }
