@@ -21,12 +21,17 @@ namespace api.Services
     {
         public async Task<Result<Workspace>> CreateWorkspaceAsync(CreateWorkspaceDto workspaceDto, Guid userId)
         {
+            // confirm if this workspace name doesn't exist for the user
+            var nameTaken = await context.Workspaces.AnyAsync(w => w.Name == workspaceDto.Name && w.OwnerId == userId);
+            if (nameTaken) return Result<Workspace>.Failure("You already have a workspace with this name");
+
             var workspaceModel = WorkspaceMappers.ToWorkspaceModelFromCreateDto(workspaceDto, userId);
             await context.Workspaces.AddAsync(workspaceModel);
 
             // create workspaceMember instance and save
             var workspaceMemberModel = WorkspaceMemberMapper.ToWorkspaceMemberModelFromCreateDto(userId, workspaceModel.Id, WorkspaceRole.Admin);
             await context.WorkspaceMembers.AddAsync(workspaceMemberModel);
+
             await context.SaveChangesAsync();
             return Result<Workspace>.Success(workspaceModel);
         }
@@ -194,13 +199,21 @@ namespace api.Services
             var requesterIsAdmin = await IsWorkspaceAdminMember(workspaceId, requestingUserId);
             if (!requesterIsAdmin) return Result<bool>.Failure("Only workspace admins can remove members");
 
-            // check if the target user is already a member of the workspace
+            // check if the target user is a member of the workspace
             var workspaceMember = await GetWorkspaceMember(targetUserId, workspaceId);
             if (workspaceMember is null) return Result<bool>.Failure("Target user is not a member of the workspace");
 
-            //  suggestion: confirm that number of admins left is at least 1, although you need to be an admin to even remove another admin
+            var workspace = await GetTrackedWorkspaceAsync(workspaceId);
+            if (workspace is null) return Result<bool>.Failure("Workspace does not exist");
 
-            context.WorkspaceMembers.Remove(workspaceMember); // this is incorrect, needs fixing
+            if (workspaceMember.AppUserId == workspace.OwnerId)
+                return Result<bool>.Failure("Owner must transfer ownership before being removed");
+                
+            // confirm that number of admins left is at least 1, although you need to be an admin to even remove another admin
+            var numberOfAdmins = workspace.WorkspaceMembers.Count(w => w.Role == WorkspaceRole.Admin);
+            if (numberOfAdmins == 1) return Result<bool>.Failure("A workspace must have at least 1 admin!");
+
+            context.WorkspaceMembers.Remove(workspaceMember);
             await context.SaveChangesAsync();
             return Result<bool>.Success(true); // user successfully removed from the workspace
         }

@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using api.Dtos;
 using api.Dtos.Workspace;
 using api.Dtos.WorkspaceMember;
+using api.Enums;
 using api.Helpers;
 using api.Models;
 
@@ -19,5 +20,7 @@ namespace api.Interfaces
         Task<Result<bool>> DeleteWorkspaceAsync(Guid Id, Guid userId);
         Task<Workspace?> GetTrackedWorkspaceAsync(Guid Id);
         Task<Result<WorkspaceMember>> AddWorkspaceMemberAsync(Guid workspaceId, Guid requestingUserId, CreateWorkspaceMemberDto dto);
+        Task<Result<bool>> RemoveWorkspaceMemberAsync(Guid workspaceId, Guid requestingUserId, Guid targetUserId);
+        Task<Result<WorkspaceMember?>> UpdateWorkspaceMemberRoleAsync( Guid workspaceId, Guid requestingUserId, Guid targetUserId, WorkspaceRole newRole);
     }
 }
