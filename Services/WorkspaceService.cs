@@ -46,7 +46,7 @@ namespace api.Services
             if (workspaceModel.Projects.Count > 0) return Result<bool>.Failure("Delete workspace projects first!");
 
             // Confirms that the user isn't the owner of the project (has transferred ownership)
-            if (workspaceModel.OwnerId != userId)
+            if (workspaceModel.OwnerId == userId)
             {
                 context.Workspaces.Remove(workspaceModel);
                 await context.SaveChangesAsync();
