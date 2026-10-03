@@ -12,7 +12,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace api.Controllers
 {
-    [Route("api/auth")]
+    [Route("api/v1/auth")]
     [ApiController]
     public class AuthController(IAuthService authService) : ControllerBase
     {

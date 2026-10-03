@@ -91,6 +91,12 @@ builder.Services.AddAuthentication(options =>
 // register the services
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<ITokenService, TokenService>();
+// WorkspaceService now serves two interfaces off one instance
+builder.Services.AddScoped<WorkspaceService>();
+builder.Services.AddScoped<IWorkspace>(sp => sp.GetRequiredService<WorkspaceService>());
+builder.Services.AddScoped<IWorkspaceAuthorization>(sp => sp.GetRequiredService<WorkspaceService>());
+builder.Services.AddScoped<IWorkspaceMemberService, WorkspaceMemberService>();
+builder.Services.AddScoped<IWorkspaceInvite, WorkspaceInviteService>();
 
 var app = builder.Build();
 

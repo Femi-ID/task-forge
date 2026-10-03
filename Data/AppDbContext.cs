@@ -19,6 +19,7 @@ namespace api.Data
         public DbSet<Comment> Comments => Set<Comment>();
         public DbSet<Label> Labels => Set<Label>();
         public DbSet<TaskLabel> TaskLabels => Set<TaskLabel>();
+        public DbSet<WorkspaceInvite> WorkspaceInvites => Set<WorkspaceInvite>();
 
         // FIXED values: HasData must never use Guid.NewGuid() at model-build time, otherwise
         // every `migrations add` sees "different" seed rows and generates delete+insert churn.
@@ -148,6 +149,23 @@ namespace api.Data
                 // To delete a single label, remove its TaskLabel rows first.
                 e.HasOne(tl => tl.Label).WithMany(l => l.TaskLabels)
                  .HasForeignKey(tl => tl.LabelId).OnDelete(DeleteBehavior.NoAction);
+            });
+
+            // WorkspaceInvite
+            builder.Entity<WorkspaceInvite>(e =>
+            {
+                e.HasOne(i => i.Workspace).WithMany(w => w.WorkspaceInvites)
+                .HasForeignKey(i => i.WorkspaceId).OnDelete(DeleteBehavior.Cascade);
+
+                e.HasOne(i => i.InvitedByUser).WithMany(u => u.Invites)
+                .HasForeignKey(i => i.InvitedByUserId).OnDelete(DeleteBehavior.Cascade);
+
+                e.Property(i => i.Role).HasConversion<string>().HasMaxLength(20);
+                e.Property(i => i.Status).HasConversion<string>().HasMaxLength(20);
+
+                e.HasIndex(i => i.TokenHash).IsUnique();
+                e.Property(i => i.InvitedEmail).HasMaxLength(256);
+                e.Property(i => i.TokenHash).HasMaxLength(128);
             });
         }
 

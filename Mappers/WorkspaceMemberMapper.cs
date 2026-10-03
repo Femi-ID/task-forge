@@ -20,5 +20,15 @@ namespace api.Mappers
                 JoinedAt = DateTime.UtcNow
             };
         }
+
+        public static WorkspaceMemberDto ToWorkspaceMemberDto(WorkspaceMember workspaceMember)
+        {
+            return new WorkspaceMemberDto
+            {
+                AppUserId = workspaceMember.AppUserId,
+                WorkspaceId = workspaceMember.WorkspaceId,
+                Role = workspaceMember.Role
+            };
+        }
     }
 }

@@ -21,7 +21,7 @@ namespace api.Services
         {
             // confirm if this workspace name doesn't exist for the user
             var nameTaken = await context.Workspaces.AnyAsync(w => w.Name == workspaceDto.Name && w.OwnerId == userId);
-            if (nameTaken) return Result<Workspace>.Failure("You already have a workspace with this name");
+            if (nameTaken) return Result<Workspace>.Failure("You already have a workspace with this name", ResultError.Conflict);
 
             var workspaceModel = WorkspaceMappers.ToWorkspaceModelFromCreateDto(workspaceDto, userId);
             await context.Workspaces.AddAsync(workspaceModel);
@@ -37,13 +37,13 @@ namespace api.Services
         public async Task<Result<bool>> DeleteWorkspaceAsync(Guid id, Guid userId)
         {
             var workspaceModel = await context.Workspaces.Include(w => w.Projects).FirstOrDefaultAsync(w => w.Id == id);
-            if (workspaceModel is null) return Result<bool>.Failure("Workspace does not exist");
+            if (workspaceModel is null) return Result<bool>.Failure("Workspace does not exist", ResultError.NotFound);
 
             // To confirm that the user has an admin role in the workspace they want to delete
             var isAdmin = await IsWorkspaceAdminMemberAsync(id, userId);
-            if (!isAdmin) return Result<bool>.Failure("403: You have no permission for this request");
+            if (!isAdmin) return Result<bool>.Failure("403: You have no permission for this request", ResultError.Forbidden);
 
-            if (workspaceModel.Projects.Count > 0) return Result<bool>.Failure("Delete workspace projects first!");
+            if (workspaceModel.Projects.Count > 0) return Result<bool>.Failure("Delete workspace projects first!", ResultError.Validation);
 
             // Confirms that the user isn't the owner of the project (has transferred ownership)
             if (workspaceModel.OwnerId == userId)
@@ -52,7 +52,7 @@ namespace api.Services
                 await context.SaveChangesAsync();
                 return Result<bool>.Success(true);
             }
-            return Result<bool>.Failure("You must transfer ownership to another admin member first");
+            return Result<bool>.Failure("You must transfer ownership to another admin member first", ResultError.Validation);
         }
 
         public async Task<Result<List<Workspace>>> GetAllWorkspacesAsync(WorkspaceQueryObject query, Guid userId)
@@ -111,18 +111,18 @@ namespace api.Services
                                 .FirstOrDefaultAsync(
                                     w => w.Id == workspaceId &&
                                     w.WorkspaceMembers.Any(m => m.AppUserId == userId));
-            if (workspaceModel is null) return Result<Workspace?>.Failure("Workspace does not exist");
+            if (workspaceModel is null) return Result<Workspace?>.Failure("Workspace does not exist", ResultError.NotFound);
             return Result<Workspace?>.Success(workspaceModel);
         }
 
         public async Task<Result<Workspace?>> UpdateWorkspaceAsync(Guid id, UpdateWorkspaceDto updateDto, Guid userId)
         {
             var existingWorkspaceModel = await GetTrackedWorkspaceAsync(id);
-            if (existingWorkspaceModel is null) return Result<Workspace?>.Failure("Workspace does not exist");
+            if (existingWorkspaceModel is null) return Result<Workspace?>.Failure("Workspace does not exist", ResultError.NotFound);
 
             // To confirm first that the user is the owner or an admin member of the workspace
             var isAdmin = await IsWorkspaceAdminMemberAsync(id, userId);
-            if (!isAdmin) return Result<Workspace?>.Failure("403: You are not permitted to make this request");
+            if (!isAdmin) return Result<Workspace?>.Failure("403: You are not permitted to make this request", ResultError.Forbidden);
 
             if (!string.IsNullOrWhiteSpace(updateDto.Name)) existingWorkspaceModel.Name = updateDto.Name;
             if (updateDto.Description is not null) existingWorkspaceModel.Description = updateDto.Description;
@@ -145,6 +145,28 @@ namespace api.Services
                 m.WorkspaceId == workspaceId && m.AppUserId == userId && m.Role == WorkspaceRole.Admin);
             if (!isAdminMember) return false;
             return true;
+        }
+
+        public async Task<Result<bool>> TransferWorkspaceOwnershipAsync(Guid workspaceId, Guid currentOwnerId, Guid newOwnerId)
+        {
+            //  get workspace
+            var workspace = await GetTrackedWorkspaceAsync(workspaceId);
+            if (workspace is null) return Result<bool>.Failure("Workspace does not exist", ResultError.NotFound);
+      
+            // confirm the requesting user is the workspace owner
+            if (workspace.OwnerId != currentOwnerId)
+                return Result<bool>.Failure("Only the current owner can transfer ownership", ResultError.Forbidden);
+
+            // confirm new owner is already a member
+            var newOwnerMember = await context.WorkspaceMembers.FirstOrDefaultAsync(m =>
+                m.WorkspaceId == workspaceId && m.AppUserId == newOwnerId);
+            if (newOwnerMember is null)
+                return Result<bool>.Failure("The new owner must already be a member of this workspace", ResultError.Validation);
+
+            newOwnerMember.Role = WorkspaceRole.Admin;
+            workspace.OwnerId = newOwnerId;
+            await context.SaveChangesAsync();
+            return Result<bool>.Success(true);
         }
     }
 }

@@ -19,6 +19,15 @@ namespace api.Mappers
             };
         }
 
+        public static List<WorkspaceDto> ToWorkspaceDtoList(List<Workspace> workspaces) =>
+        workspaces.Select(w => new WorkspaceDto
+        {
+            Id = w.Id,
+            Name = w.Name,
+            Description = w.Description,
+            OwnerId = w.OwnerId
+        }).ToList();
+
         public static WorkspaceDto ToWorkspaceDto(Workspace workspaceModel, Guid userId)
         {
             return new WorkspaceDto
@@ -30,18 +39,30 @@ namespace api.Mappers
             };
         }
 
-        public static Workspace ToWorkspaceModelFromUpdateDto(UpdateWorkspaceDto updateDto)
-        {
-            if (string.IsNullOrWhiteSpace(updateDto.Name) && string.IsNullOrWhiteSpace(updateDto.Description))
-            {
-                return null!;
-            };
-            //  write code that confirms update.Name and .Description are not null
-            return new Workspace
-            {
-                Name = updateDto.Name!,
-                Description = updateDto.Description
-            };
-        }
+        // public static Workspace ToWorkspaceModelFromUpdateDto(UpdateWorkspaceDto updateDto)
+        // {
+        //     if (string.IsNullOrWhiteSpace(updateDto.Name) && string.IsNullOrWhiteSpace(updateDto.Description))
+        //     {
+        //         return null!;
+        //     }
+        //     ;
+        //     //  write code that confirms update.Name and .Description are not null
+        //     return new Workspace
+        //     {
+        //         Name = updateDto.Name!,
+        //         Description = updateDto.Description
+        //     };
+        // }
+
+        // public static WorkspaceDto ToWorkspaceDtoFromGetAll(Workspace workspaceModel, Guid userId)
+        // {
+        //     return new WorkspaceDto
+        //     {
+        //         Id = workspaceModel.Id,
+        //         Name = workspaceModel.Name,
+        //         Description = workspaceModel.Description,
+        //         OwnerId = userId
+        //     };
+        // }
     }
 }
