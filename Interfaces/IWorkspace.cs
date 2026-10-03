@@ -18,5 +18,6 @@ namespace api.Interfaces
         Task<Result<Workspace?>> GetWorkspaceByIdAsync(Guid Id, Guid userId);
         Task<Result<Workspace?>> UpdateWorkspaceAsync(Guid Id, UpdateWorkspaceDto updateDto, Guid userId);
         Task<Result<bool>> DeleteWorkspaceAsync(Guid Id, Guid userId);
+        Task<Result<bool>> TransferWorkspaceOwnershipAsync(Guid workspaceId, Guid currentOwnerId, Guid newOwnerId);
     }
 }

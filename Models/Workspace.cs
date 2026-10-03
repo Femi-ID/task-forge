@@ -15,6 +15,7 @@ namespace api.Models
         public List<WorkspaceMember> WorkspaceMembers { get; set; } = new List<WorkspaceMember>();
         public List<Project> Projects { get; set; } = new List<Project>();
         public List<Label> Labels { get; set; } = [];  
+        public List<WorkspaceInvite> WorkspaceInvites { get; set; } = new List<WorkspaceInvite>();
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime? UpdatedAt { get; set; }
     }

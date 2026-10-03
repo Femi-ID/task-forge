@@ -16,6 +16,7 @@ namespace api.Models
         public List<WorkspaceMember> WorkspaceMembers { get; set; } = [];
         public List<TaskItem> AssignedTasks { get; set; } = new List<TaskItem>();
         public List<Comment> Comments { get; set; } = new List<Comment>();
+        public List<WorkspaceInvite> Invites { get; set; } = new List<WorkspaceInvite>();
 
         // refresh-token fields
         public string? RefreshToken { get; set; }
