@@ -33,6 +33,7 @@ namespace api.Services
             var duplicatePending = await context.WorkspaceInvites.AnyAsync(i =>
                 i.WorkspaceId == dto.WorkspaceId &&
                 i.InvitedEmail == dto.InvitedEmail &&
+                i.Status == WorkspaceInviteStatus.Pending &&
                 i.ExpireAt > DateTime.UtcNow);
             if (duplicatePending) return Result<WorkspaceInviteResponseDto>.Failure("An invite is already pending for this email", ResultError.Conflict);
 

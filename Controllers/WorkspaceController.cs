@@ -11,7 +11,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace api.Controllers
 {
-    [Route("api/v1/workspace")]
+    [Route("api/v1/workspaces")]
     [ApiController]
     public class WorkspaceController(IWorkspace workspaceService) : ApiControllerBase
     {
@@ -64,12 +64,14 @@ namespace api.Controllers
             return response.Succeeded ? Ok(WorkspaceMappers.ToWorkspaceDto(response.Data!, CurrentUserId)): HandleResult(response); 
         }
 
-        [HttpPost("{workspace:Guid}/transfer-ownership")]
+        public record TransferOwnershipDto(Guid NewOwnerId);
+        
+        [HttpPost("{workspaceId:Guid}/transfer-ownership")]
         [Authorize]
-        public async Task<IActionResult> TransferWorkspaceOwnership([FromRoute] Guid workspaceId, [FromBody] Guid newOwnerId)
+        public async Task<IActionResult> TransferWorkspaceOwnership([FromRoute] Guid workspaceId, [FromBody] TransferOwnershipDto Id)
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);
-            var response = await workspaceService.TransferWorkspaceOwnershipAsync(workspaceId, CurrentUserId, newOwnerId);
+            var response = await workspaceService.TransferWorkspaceOwnershipAsync(workspaceId, CurrentUserId, Id.NewOwnerId);
 
             if (!response.Succeeded) return HandleResult(response);
             return Ok(response.Data);

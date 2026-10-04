@@ -22,15 +22,19 @@ namespace api.Controllers
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);
             var response = await workspaceMemberService.AddWorkspaceMemberAsync(workspaceId, CurrentUserId, memberDto);
-            return response.Succeeded ? Ok(WorkspaceMemberMapper.ToWorkspaceMemberDto(response.Data!)): HandleResult(response);
+            return response.Succeeded 
+                ? StatusCode(StatusCodes.Status201Created, WorkspaceMemberMapper.ToWorkspaceMemberDto(response.Data!))
+                : HandleResult(response);
         }
-
+        
+        public record UpdateWorkspaceMemberRoleDto(Guid TargetUserId, WorkspaceRole NewRole);
+        
         [HttpPut("{workspaceId:Guid}")]
         [Authorize]
-        public async Task<IActionResult> UpdateWorkspaceMemberRole([FromRoute] Guid workspaceId, [FromBody] Guid targetUserId, WorkspaceRole newRole)
+        public async Task<IActionResult> UpdateWorkspaceMemberRole([FromRoute] Guid workspaceId, [FromBody] UpdateWorkspaceMemberRoleDto dto)
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);
-            var response = await workspaceMemberService.UpdateWorkspaceMemberRoleAsync(workspaceId, CurrentUserId, targetUserId, newRole);
+            var response = await workspaceMemberService.UpdateWorkspaceMemberRoleAsync(workspaceId, CurrentUserId, dto.TargetUserId, dto.NewRole);
             return response.Succeeded ? Ok(WorkspaceMemberMapper.ToWorkspaceMemberDto(response.Data!)): HandleResult(response);
         }
 

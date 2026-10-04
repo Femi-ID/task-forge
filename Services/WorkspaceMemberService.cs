@@ -14,9 +14,9 @@ using Microsoft.EntityFrameworkCore;
 namespace api.Services
 {
     public class WorkspaceMemberService(
-        AppDbContext context, 
-        IWorkspaceAuthorization workspaceAuth, 
-        ITokenService tokenService): IWorkspaceMemberService
+        AppDbContext context,
+        IWorkspaceAuthorization workspaceAuth,
+        ITokenService tokenService) : IWorkspaceMemberService
     {
         public async Task<Result<WorkspaceMember>> AddWorkspaceMemberAsync(
             Guid workspaceId, Guid requestingUserId, CreateWorkspaceMemberDto dto)
@@ -88,7 +88,7 @@ namespace api.Services
                 return Result<bool>.Failure("Owner must transfer ownership before being removed", ResultError.Conflict);
 
             // confirm that number of admins left is at least 1, although you need to be an admin to even remove another admin
-            var numberOfAdmins = workspace.WorkspaceMembers.Count(w => w.Role == WorkspaceRole.Admin);
+            var numberOfAdmins = await context.WorkspaceMembers.CountAsync(m => m.Role == WorkspaceRole.Admin && m.WorkspaceId == workspaceId);
             if (numberOfAdmins == 1) return Result<bool>.Failure("A workspace must have at least 1 admin!", ResultError.Conflict);
 
             context.WorkspaceMembers.Remove(workspaceMember);
@@ -110,7 +110,7 @@ namespace api.Services
             if (workspaceMember.AppUserId == workspace.OwnerId)
                 return Result<bool>.Failure("Owner must transfer ownership before being removed", ResultError.Conflict);
             
-            var numberOfAdmins = workspace.WorkspaceMembers.Count(w => w.Role == WorkspaceRole.Admin);
+            var numberOfAdmins = await context.WorkspaceMembers.CountAsync(m => m.Role == WorkspaceRole.Admin && m.WorkspaceId == workspaceId);
             if (numberOfAdmins == 1)
             {
                 var lastAdmin = await context.WorkspaceMembers.FirstOrDefaultAsync(w => w.Role == WorkspaceRole.Admin);
@@ -134,13 +134,25 @@ namespace api.Services
             return workspaceMember;
         }
 
-        public async Task<Result<WorkspaceMember>> AcceptWorkspaceInviteAsync(string rawToken, Guid acceptingUserId)
+        public async Task<Result<WorkspaceMember>> AcceptWorkspaceInviteByTokenAsync(string rawToken, Guid acceptingUserId)
         {
             // confirm the hashToken exists
             var tokenHash = tokenService.HashToken(rawToken);
             var invite = await context.WorkspaceInvites.FirstOrDefaultAsync(i => i.TokenHash == tokenHash);
             if (invite is null) return Result<WorkspaceMember>.Failure("Invalid invite", ResultError.NotFound);
+            return await VerifyAndAcceptInviteAsync(invite, acceptingUserId);
+        }
 
+        public async Task<Result<WorkspaceMember>> AcceptWorkspaceInviteByIdAsync(Guid inviteId, Guid acceptingUserId)
+        {
+            // confirm the invite exists
+            var invite = await context.WorkspaceInvites.FindAsync(inviteId);
+            if (invite is null) return Result<WorkspaceMember>.Failure("Invite not found", ResultError.NotFound);
+            return await VerifyAndAcceptInviteAsync(invite, acceptingUserId);
+        }
+
+        public async Task<Result<WorkspaceMember>> VerifyAndAcceptInviteAsync(WorkspaceInvite invite, Guid acceptingUserId)
+        {
             // confirm the invite is still valid
             if (invite.Status != WorkspaceInviteStatus.Pending)
                 return Result<WorkspaceMember>.Failure("This invite is no longer valid", ResultError.Conflict);
@@ -152,6 +164,7 @@ namespace api.Services
                 return Result<WorkspaceMember>.Failure("This invite has expired", ResultError.Conflict);
             }
 
+            // fetch user
             var acceptingUser = await context.Users.FindAsync(acceptingUserId);
             if (acceptingUser is null) return Result<WorkspaceMember>.Failure("User not found", ResultError.NotFound);
 
@@ -169,6 +182,7 @@ namespace api.Services
                 return Result<WorkspaceMember>.Failure("You are already a member of this workspace", ResultError.Conflict);
             }
 
+            //  add user to the workspace
             var member = WorkspaceMemberMapper.ToWorkspaceMemberModelFromCreateDto(acceptingUserId, invite.WorkspaceId, invite.Role);
             await context.WorkspaceMembers.AddAsync(member);
             invite.Status = WorkspaceInviteStatus.Accepted;

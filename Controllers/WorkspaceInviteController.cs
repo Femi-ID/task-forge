@@ -16,28 +16,33 @@ namespace api.Controllers
     public class WorkspaceInviteController(IWorkspaceInvite workspaceInviteService) : ApiControllerBase
     {
         [HttpPost]
-        public async Task<IActionResult> GenerateInvite(Guid workspaceId, [FromBody] GenerateWorkspaceInviteDto dto)
+        public async Task<IActionResult> GenerateInviteAsync(Guid workspaceId, [FromBody] GenerateWorkspaceInviteDto dto)
         {
             if (dto.WorkspaceId != workspaceId) return BadRequest("Workspace mismatch");
             if (!ModelState.IsValid) return BadRequest(ModelState);
 
             var workspaceInvite = await workspaceInviteService.GenerateWorkspaceInviteAsync(dto, CurrentUserId);
-            if (workspaceInvite.Data!.InvitedEmail is null) return HandleResult(workspaceInvite);
-
             return HandleResult(workspaceInvite);
-            // var inviteLink = $"taskforge.com/workspace-member/add/{response.Data.WorkspaceId}/{response.Data.}";
+            // var inviteLink = $"https://taskforge.app/invites/accept?token={RawToken}";
         }
 
         [HttpGet]
-        public async Task<IActionResult> GetAllSentWorkspaceInvites(Guid workspaceId)
+        public async Task<IActionResult> GetAllSentWorkspaceInvitesAsync(Guid workspaceId)
         {
             return HandleResult(await workspaceInviteService.GetAllSentWorkspaceInvitesAsync(workspaceId, CurrentUserId));
         }
 
         [HttpDelete("{inviteId:Guid}")]
-        public async Task<IActionResult> RevokeInvite(Guid inviteId)
+        public async Task<IActionResult> RevokeInviteAsync(Guid inviteId)
         {
             return HandleResult(await workspaceInviteService.RevokeWorkspaceInviteAsync(inviteId, CurrentUserId));
+        }
+
+        [HttpGet("{inviteId:Guid}")]
+        public async Task<IActionResult> GetWorkspaceInviteByIdAsync([FromRoute] Guid workspaceId, Guid inviteId)
+        {
+            var response = await workspaceInviteService.GetWorkspaceInviteByIdAsync(workspaceId, inviteId, CurrentUserId);
+            return HandleResult(response);
         }
     }
 
@@ -48,16 +53,22 @@ namespace api.Controllers
     public class MyInvitesController(IWorkspaceInvite inviteService, IWorkspaceMemberService memberService) : ApiControllerBase
     {
         [HttpGet]
-        public async Task<IActionResult> GetMyInvites()
+        public async Task<IActionResult> GetMyInvitesAsync()
         {
             return HandleResult(await inviteService.GetMyInvitesAsync(CurrentUserId));
         }
 
         public record AcceptInviteDto(string Token);
 
-        [HttpPost("accept")]
+        [HttpPost("token/accept")]
         public async Task<IActionResult> AcceptInvite([FromBody] AcceptInviteDto dto) =>
-        HandleResult(await memberService.AcceptWorkspaceInviteAsync(dto.Token, CurrentUserId));
+        HandleResult(await memberService.AcceptWorkspaceInviteByTokenAsync(dto.Token, CurrentUserId));
 
+        [HttpPost("{inviteId:Guid}/accept")]
+        public async Task<IActionResult> AcceptInviteWorkspaceById([FromRoute] Guid inviteId)
+        {
+            var response = await memberService.AcceptWorkspaceInviteByIdAsync(inviteId, CurrentUserId);
+            return HandleResult(response);
+        }
     }
 }
