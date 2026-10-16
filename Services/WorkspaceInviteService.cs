@@ -68,6 +68,7 @@ namespace api.Services
                         i.ExpireAt > DateTime.UtcNow)
                 .OrderByDescending(i => i.ExpireAt)
                 .ToListAsync();
+            if (invitations is null) return Result<List<WorkspaceInviteDto>>.Failure("Invite not found", ResultError.NotFound);
             return Result<List<WorkspaceInviteDto>>.Success(invitations.Select(WorkspaceInviteMapper.ToWorkspaceInviteDto).ToList());
         }
 
@@ -79,7 +80,7 @@ namespace api.Services
 
             var invites = await context.WorkspaceInvites
                 .Include(i => i.Workspace).Include(i => i.InvitedByUser)
-                .Where(i => i.WorkspaceId == workspaceId) // do i add "&& i.InvitedByUser == requestingUserId"?
+                .Where(i => i.WorkspaceId == workspaceId)
                 .ToListAsync();
 
             return Result<List<WorkspaceInviteDto>>.Success(invites.Select(WorkspaceInviteMapper.ToWorkspaceInviteDto).ToList());
