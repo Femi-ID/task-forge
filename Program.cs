@@ -95,8 +95,10 @@ builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<WorkspaceService>();
 builder.Services.AddScoped<IWorkspace>(sp => sp.GetRequiredService<WorkspaceService>());
 builder.Services.AddScoped<IWorkspaceAuthorization>(sp => sp.GetRequiredService<WorkspaceService>());
+// builder.Services.AddScoped<IWorkspaceAuthorization>(sp => sp.GetRequiredService<ProjectService>());
 builder.Services.AddScoped<IWorkspaceMemberService, WorkspaceMemberService>();
 builder.Services.AddScoped<IWorkspaceInvite, WorkspaceInviteService>();
+builder.Services.AddScoped<IProjectService, ProjectService>();
 
 var app = builder.Build();
 

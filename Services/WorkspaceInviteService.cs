@@ -68,6 +68,7 @@ namespace api.Services
                         i.ExpireAt > DateTime.UtcNow)
                 .OrderByDescending(i => i.ExpireAt)
                 .ToListAsync();
+            if (invitations is null) return Result<List<WorkspaceInviteDto>>.Failure("Invite not found", ResultError.NotFound);
             return Result<List<WorkspaceInviteDto>>.Success(invitations.Select(WorkspaceInviteMapper.ToWorkspaceInviteDto).ToList());
         }
 
