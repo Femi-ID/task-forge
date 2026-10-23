@@ -10,5 +10,6 @@ namespace api.Interfaces
     {
         Task<bool> IsWorkspaceAdminMemberAsync(Guid workspaceId, Guid userId);
         Task<Workspace?> GetTrackedWorkspaceAsync(Guid workspaceId);
+        Task<bool> IsWorkspaceMemberAsync(Guid workspaceId, Guid userId);
     }
 }

@@ -85,7 +85,8 @@ namespace api.Services
             }
             if (query.ExactDate.HasValue)
             {
-                workspaces = workspaces.Where(w => w.UpdatedAt == query.ExactDate);
+                var day = query.ExactDate.Value.Date;
+                workspaces = workspaces.Where(w => w.CreatedAt >= day && w.CreatedAt < day.AddDays(1));
             }
 
             //  sorting
@@ -167,6 +168,11 @@ namespace api.Services
             workspace.OwnerId = newOwnerId;
             await context.SaveChangesAsync();
             return Result<bool>.Success(true);
+        }
+
+        public async Task<bool> IsWorkspaceMemberAsync(Guid workspaceId, Guid userId)
+        {
+            return await context.WorkspaceMembers.AnyAsync(m => m.WorkspaceId == workspaceId && m.AppUserId == userId);
         }
     }
 }

@@ -21,7 +21,7 @@ namespace api.Models
         public required DateTime DueDate { get; set; }
         public List<Comment> Comments { get; set; } = new List<Comment>();
         public List<TaskLabel> TaskLabels { get; set; } = new List<TaskLabel>();
-        public DateTime CreatedAt { get; set; } = DateTime.Now;
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime? UpdatedAt { get; set; }
     }
 }

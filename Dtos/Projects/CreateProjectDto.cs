@@ -16,8 +16,7 @@ namespace api.Dtos.Projects
 
         [MinLength(3)]
         [MaxLength(2000)]
-        public string Description { get; set; } = null!;
+        public string? Description { get; set; } = null!;
         public ProjectStatus Status { get; set; } = ProjectStatus.NotStarted;
-        public Guid  WorkspaceId { get; set; }
     }
 }
