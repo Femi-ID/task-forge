@@ -11,29 +11,29 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace api.Controllers
 {
-    [Route("api/v1/projects")]
+    [Route("api/v1/workspaces")]
     [ApiController, Authorize]
     public class ProjectController(IProjectService projectService): ApiControllerBase
     {
-        [HttpPost]
-        public async Task<IActionResult> CreateProjectAsync([FromBody] CreateProjectDto dto)
+        [HttpPost("{workspaceId:Guid}/projects")]
+        public async Task<IActionResult> CreateProject([FromBody] CreateProjectDto dto, [FromRoute] Guid workspaceId)
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);
-            var project = await projectService.CreateProjectAsync(dto, CurrentUserId);
-            return HandleResult(project);
+            var project = await projectService.CreateProjectAsync(dto, workspaceId, CurrentUserId);
+            return CreatedAtAction(nameof(GetProjectById), new { workspaceId, projectId = project.Data!.Id }, project.Data);
         }
 
         public record DeleteProjectDto(Guid workspaceId, Guid projectId);
 
-        [HttpDelete("{projectId:Guid}/{workspaceId:Guid}")]
-        public async Task<IActionResult> DeleteProjectAsync([FromRoute] DeleteProjectDto dto)
+        [HttpDelete("{workspaceId:Guid}/projects/{projectId:Guid}")]
+        public async Task<IActionResult> DeleteProject([FromRoute] DeleteProjectDto dto)
         {
             var project = await projectService.DeleteProjectAsync(dto.workspaceId, dto.projectId, CurrentUserId);
-            return project.Succeeded ? Ok(project.Data) : HandleResult(project);
+            return project.Succeeded ? NoContent() : HandleResult(project);
         }
 
         [HttpGet("{workspaceId:Guid}")]
-        public async Task<IActionResult> GetAllProjectsAsync([FromRoute] Guid workspaceId, ProjectQueryObject query)
+        public async Task<IActionResult> GetAllProjects([FromRoute] Guid workspaceId, [FromQuery] ProjectQueryObject query)
         {
             var projects = await projectService.GetAllProjectAsync(workspaceId, CurrentUserId, query);
             return HandleResult(projects);
@@ -46,7 +46,7 @@ namespace api.Controllers
             return project.Succeeded ? Ok(project.Data) : HandleResult(project);
         }
 
-        [HttpPut("{workspaceId:Guid}/{projectId:Guid}")]
+        [HttpPatch("{workspaceId:Guid}/{projectId:Guid}")]
         public async Task<IActionResult> UpdateProject([FromRoute] Guid workspaceId, Guid projectId, [FromBody] UpdateProjectDto dto)
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);

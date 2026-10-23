@@ -9,14 +9,14 @@ namespace api.Mappers
 {
     public class ProjectMappers
     {
-        public static Project ToProjectModelFromCreateProjectDto(CreateProjectDto dto)
+        public static Project ToProjectModelFromCreateProjectDto(CreateProjectDto dto, Guid workspaceId)
         {
             return new Project
             {
                 Name = dto.Name,
                 Description = dto.Description,
                 Status = dto.Status,
-                WorkspaceId = dto.WorkspaceId
+                WorkspaceId = workspaceId
             };
         }
 
@@ -29,7 +29,7 @@ namespace api.Mappers
                 Description = p.Description,
                 Status = p.Status,
                 WorkspaceId = p.WorkspaceId,
-                Tasks = p.Tasks,
+                TaskCount = p.Tasks.Count,
                 CreatedAt = p.CreatedAt
             }).ToList();
         }
@@ -43,7 +43,8 @@ namespace api.Mappers
                 Description = projectModel.Description,
                 Status = projectModel.Status,
                 WorkspaceId = projectModel.WorkspaceId,
-                CreatedAt = projectModel.CreatedAt
+                CreatedAt = projectModel.CreatedAt,
+                Tasks = projectModel.Tasks // i want this to be a list of the tasks (the task title and the id acting as a pointer to the task)
             };
         }
     }

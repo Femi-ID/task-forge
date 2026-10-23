@@ -15,6 +15,7 @@ namespace api.Dtos.Projects
         public ProjectStatus Status { get; set; }
          public Guid WorkspaceId { get; set; }
          public DateTime CreatedAt { get; set; }
+         public List<TaskItem> Tasks { get; set; } = [];
     }
     public class ProjectResponseDtoList
     {
@@ -23,7 +24,7 @@ namespace api.Dtos.Projects
         public string? Description { get; set; }
         public ProjectStatus Status { get; set; }
          public Guid WorkspaceId { get; set; }
-         public List<TaskItem> Tasks { get; set; } = new List<TaskItem>();
+         public int TaskCount { get; set; }
          public DateTime CreatedAt { get; set; }
     }
 }

@@ -491,7 +491,7 @@ namespace api.Migrations
 
                     b.HasIndex("WorkspaceId");
 
-                    b.ToTable("WorkspaceInvite");
+                    b.ToTable("WorkspaceInvites");
                 });
 
             modelBuilder.Entity("api.Models.WorkspaceMember", b =>
