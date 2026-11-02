@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json.Serialization;
 using api.Data;
 using api.Interfaces;
 using api.Models;
@@ -38,7 +39,9 @@ builder.Services.AddOpenApi(options =>
         return Task.CompletedTask;
     });
 });
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(o => o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
+    // enums serialize as raw integers by default (0, 1, 2) unless told otherwise
 
 // Database connection
 builder.Services.AddDbContext<AppDbContext>(options =>

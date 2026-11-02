@@ -12,6 +12,5 @@ namespace api.Interfaces
         string CreateAccessToken(AppUser user, IList<string> roles);
         (string RawToken, string HashedToken) GenerateRefreshToken();
         string HashToken(string rawToken);
-        // Task<string?> CreateAndSaveRefreshTokenHashAsync(AppUser user);
     }
 }

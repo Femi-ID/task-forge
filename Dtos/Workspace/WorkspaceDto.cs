@@ -15,6 +15,8 @@ namespace api.Dtos.Workspace
         public required string Name { get; set; } = null!;
         public string? Description { get; set; }
         public Guid OwnerId { get; set; }
+        public string OwnerFullName { get; set; } = null!;
+        // public List<WorkspaceMember> WorkspaceMembers { get; set; } = [];
         // public AppUser Owner { get; set; } = null!;
         // public List<WorkspaceMember> WorkspaceMembers { get; set; } = new List<WorkspaceMember>();
         // public List<Project> Projects { get; set; } = new List<Project>();

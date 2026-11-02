@@ -27,7 +27,11 @@ namespace api.Mappers
             {
                 AppUserId = workspaceMember.AppUserId,
                 WorkspaceId = workspaceMember.WorkspaceId,
-                Role = workspaceMember.Role
+                FullName = workspaceMember.AppUser.FullName,
+                Email = workspaceMember.AppUser.Email!,
+                Role = workspaceMember.Role,
+                JoinedAt = workspaceMember.JoinedAt,
+                IsOwner = workspaceMember.AppUserId == workspaceMember.Workspace.OwnerId
             };
         }
     }

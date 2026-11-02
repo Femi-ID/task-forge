@@ -24,9 +24,11 @@ namespace api.Services
             var requesterIsAdmin = await workspaceAuth.IsWorkspaceAdminMemberAsync(dto.WorkspaceId, invitedByUserId);
             if (!requesterIsAdmin) return Result<WorkspaceInviteResponseDto>.Failure("Only workspace admins can add members", ResultError.Forbidden);
 
+            var invitedEmail = dto.InvitedEmail.Trim().ToLowerInvariant();
+
             // confirm if the invited user is not a member of the workspace
             var alreadyMember = await context.WorkspaceMembers.AnyAsync(m =>
-                m.AppUser.Email == dto.InvitedEmail && m.WorkspaceId == dto.WorkspaceId);
+                m.AppUser.NormalizedEmail == invitedEmail.ToUpperInvariant() && m.WorkspaceId == dto.WorkspaceId);
             if (alreadyMember) return Result<WorkspaceInviteResponseDto>.Failure("User is already a member of this workspace", ResultError.Conflict);
 
             // avoid re-creating another invite for a user who currently has a valid invite link
@@ -35,7 +37,7 @@ namespace api.Services
                 i.InvitedEmail == dto.InvitedEmail &&
                 i.Status == WorkspaceInviteStatus.Pending &&
                 i.ExpireAt > DateTime.UtcNow);
-            if (duplicatePending) return Result<WorkspaceInviteResponseDto>.Failure("An invite is already pending for this email", ResultError.Conflict);
+            if (duplicatePending) return Result<WorkspaceInviteResponseDto>.Failure("An invite to this workspace is already pending for this email", ResultError.Conflict);
 
             // generate token
             var (rawToken, hashedToken) = tokenService.GenerateRefreshToken(); // reused: random bytes + hash
@@ -50,7 +52,7 @@ namespace api.Services
                 WorkspaceId = inviteModel.WorkspaceId,
                 InvitedEmail = inviteModel.InvitedEmail,
                 ExpireAt = inviteModel.ExpireAt,
-                RawToken = rawToken // it's only ever present in this response not stored, not logged
+                RawToken = rawToken // it's only present in this response not stored, not logged
             };
             return Result<WorkspaceInviteResponseDto>.Success(response);
         }
@@ -58,9 +60,10 @@ namespace api.Services
         public async Task<Result<List<WorkspaceInviteDto>>> GetMyInvitesAsync(Guid invitedUserId)
         {
             var user = await context.Users.FirstOrDefaultAsync(u => u.Id == invitedUserId);
-            if (user is null) return Result<List<WorkspaceInviteDto>>.Failure("Only workspace admins can view invites", ResultError.Validation);
+            if (user?.Email is null) return Result<List<WorkspaceInviteDto>>.Failure("User not found", ResultError.NotFound);
 
-            var invitations = await context.WorkspaceInvites
+            var email = user.Email.ToLowerInvariant();
+            var invitations = await context.WorkspaceInvites.AsNoTracking()
                 .Include(i => i.Workspace).Include(i => i.InvitedByUser)
                 .Where(i =>
                         i.InvitedEmail == user.Email &&
@@ -68,8 +71,10 @@ namespace api.Services
                         i.ExpireAt > DateTime.UtcNow)
                 .OrderByDescending(i => i.ExpireAt)
                 .ToListAsync();
-            if (invitations is null) return Result<List<WorkspaceInviteDto>>.Failure("Invite not found", ResultError.NotFound);
-            return Result<List<WorkspaceInviteDto>>.Success(invitations.Select(WorkspaceInviteMapper.ToWorkspaceInviteDto).ToList());
+            if (invitations is null) return Result<List<WorkspaceInviteDto>>.Failure("No invites found", ResultError.NotFound);
+
+            var invitationsDto = invitations.Select(WorkspaceInviteMapper.ToWorkspaceInviteDto).ToList();
+            return Result<List<WorkspaceInviteDto>>.Success(invitationsDto);
         }
 
         public async Task<Result<List<WorkspaceInviteDto>>> GetAllSentWorkspaceInvitesAsync(Guid workspaceId, Guid requestingUserId)
@@ -79,6 +84,7 @@ namespace api.Services
             if (!requesterIsAdmin) return Result<List<WorkspaceInviteDto>>.Failure("Only workspace admins can view invites", ResultError.Forbidden);
 
             var invites = await context.WorkspaceInvites
+                .AsNoTracking()
                 .Include(i => i.Workspace).Include(i => i.InvitedByUser)
                 .Where(i => i.WorkspaceId == workspaceId)
                 .ToListAsync();
@@ -88,24 +94,25 @@ namespace api.Services
 
         public async Task<Result<WorkspaceInviteDto>> GetWorkspaceInviteByIdAsync(Guid workspaceId, Guid inviteId, Guid requestingUserId)
         {
-            var invite = await context.WorkspaceInvites.Include(i => i.Workspace).Include(i => i.InvitedByUser)
-                .FirstOrDefaultAsync(i => i.Id == inviteId && i.WorkspaceId == workspaceId); // added this- && i.WorkspaceId == workspaceId
-            if (invite is null) return Result<WorkspaceInviteDto>.Failure("Invite not found", ResultError.NotFound);
-
             // confirm the requesting user is an admin
-            var requesterIsAdmin = await workspaceAuth.IsWorkspaceAdminMemberAsync(invite.WorkspaceId, requestingUserId);
+            var requesterIsAdmin = await workspaceAuth.IsWorkspaceAdminMemberAsync(workspaceId, requestingUserId);
             if (!requesterIsAdmin) return Result<WorkspaceInviteDto>.Failure("You don't have access to this invite", ResultError.Forbidden);
+
+            var invite = await context.WorkspaceInvites.AsNoTracking()
+                .Include(i => i.Workspace).Include(i => i.InvitedByUser)
+                .FirstOrDefaultAsync(i => i.Id == inviteId && i.WorkspaceId == workspaceId);
+            if (invite is null) return Result<WorkspaceInviteDto>.Failure("Invite not found", ResultError.NotFound);
 
             return Result<WorkspaceInviteDto>.Success(WorkspaceInviteMapper.ToWorkspaceInviteDto(invite));
         }
 
-        public async Task<Result<bool>> RevokeWorkspaceInviteAsync(Guid inviteId, Guid requestingUserId)
+        public async Task<Result<bool>> RevokeWorkspaceInviteAsync(Guid workspaceId, Guid inviteId, Guid requestingUserId)
         {
-            var invite = await context.WorkspaceInvites.FindAsync(inviteId);
-            if (invite is null) return Result<bool>.Failure("Invite not found", ResultError.NotFound);
-
-            var requesterIsAdmin = await workspaceAuth.IsWorkspaceAdminMemberAsync(invite.WorkspaceId, requestingUserId);
+            var requesterIsAdmin = await workspaceAuth.IsWorkspaceAdminMemberAsync(workspaceId, requestingUserId);
             if (!requesterIsAdmin) return Result<bool>.Failure("Only workspace admins can revoke invites", ResultError.Forbidden);
+
+            var invite = await context.WorkspaceInvites.FirstOrDefaultAsync(i => i.Id == inviteId && i.WorkspaceId == workspaceId);
+            if (invite is null) return Result<bool>.Failure("Invite not found", ResultError.NotFound);
 
             if (invite.Status != WorkspaceInviteStatus.Pending)
                 return Result<bool>.Failure("This invite is no longer pending", ResultError.Conflict);
