@@ -18,56 +18,60 @@ namespace api.Services
         IWorkspaceAuthorization workspaceAuth,
         ITokenService tokenService) : IWorkspaceMemberService
     {
-        public async Task<Result<WorkspaceMember>> AddWorkspaceMemberAsync(
+        public async Task<Result<WorkspaceMemberDto>> AddWorkspaceMemberAsync(
             Guid workspaceId, Guid requestingUserId, CreateWorkspaceMemberDto dto)
         {
             // confirm if the requesting user is an admin in that workspace
             var requesterIsAdmin = await workspaceAuth.IsWorkspaceAdminMemberAsync(workspaceId, requestingUserId);
-            if (!requesterIsAdmin) return Result<WorkspaceMember>.Failure("Only workspace admins can add members", ResultError.Forbidden);
+            if (!requesterIsAdmin) return Result<WorkspaceMemberDto>.Failure("Only workspace admins can add members", ResultError.Forbidden);
 
             // confirm if the target user exists
             var targetUserExists = await context.Users.AnyAsync(u => u.Id == dto.AppUserId);
-            if (!targetUserExists) return Result<WorkspaceMember>.Failure("User not found", ResultError.NotFound);
+            if (!targetUserExists) return Result<WorkspaceMemberDto>.Failure("User not found", ResultError.NotFound);
 
             // check if the target user is already a member of the workspace
             var alreadyMember = await context.WorkspaceMembers.AnyAsync(m =>
                 m.AppUserId == dto.AppUserId && m.WorkspaceId == workspaceId);
-            if (alreadyMember) return Result<WorkspaceMember>.Failure("User is already a member of this workspace", ResultError.Conflict);
+            if (alreadyMember) return Result<WorkspaceMemberDto>.Failure("User is already a member of this workspace", ResultError.Conflict);
 
             // add the target user to the workspace 
             var newWorkspaceMemberModel = WorkspaceMemberMapper.ToWorkspaceMemberModelFromCreateDto(dto.AppUserId, workspaceId, dto.Role);
             await context.WorkspaceMembers.AddAsync(newWorkspaceMemberModel);
             await context.SaveChangesAsync();
-            return Result<WorkspaceMember>.Success(newWorkspaceMemberModel);
+
+            // abstract data with dto 
+            var workspaceMemberDto = WorkspaceMemberMapper.ToWorkspaceMemberDto(newWorkspaceMemberModel);
+            return Result<WorkspaceMemberDto>.Success(workspaceMemberDto);
         }
 
-        public async Task<Result<WorkspaceMember?>> UpdateWorkspaceMemberRoleAsync(
+        public async Task<Result<WorkspaceMemberDto>> UpdateWorkspaceMemberRoleAsync(
                 Guid workspaceId,
                 Guid requestingUserId,
                 Guid targetUserId,
                 WorkspaceRole newRole)
         {
-            // do i need to: confirm if the requesting user is the same as the target user,allow but check if they're the last admin
-
             // confirm if the requesting user is an admin in that workspace
             var requesterIsAdmin = await workspaceAuth.IsWorkspaceAdminMemberAsync(workspaceId, requestingUserId);
-            if (!requesterIsAdmin) return Result<WorkspaceMember?>.Failure("Only workspace admins can remove members", ResultError.Forbidden);
+            if (!requesterIsAdmin) return Result<WorkspaceMemberDto>.Failure("Only workspace admins can change member role", ResultError.Forbidden);
 
             // check if the target user is already a member of the workspace
             var workspaceMember = await GetWorkspaceMember(targetUserId, workspaceId);
-            if (workspaceMember is null) return Result<WorkspaceMember?>.Failure("Target user is not a member of the workspace", ResultError.Validation);
+            if (workspaceMember is null) return Result<WorkspaceMemberDto>.Failure("Target user is not a member of the workspace", ResultError.Validation);
 
             // get workspace
             var workspace = await workspaceAuth.GetTrackedWorkspaceAsync(workspaceId);
-            if (workspace is null) return Result<WorkspaceMember?>.Failure("Workspace does not exist", ResultError.NotFound);
+            if (workspace is null) return Result<WorkspaceMemberDto>.Failure("Workspace does not exist", ResultError.NotFound);
 
             // ensure the user(user's role) being changed isn't the owner
             if (workspaceMember.AppUserId == workspace.OwnerId)
-                return Result<WorkspaceMember?>.Failure("Owner must always be an admin", ResultError.Forbidden);
+                return Result<WorkspaceMemberDto>.Failure("Owner must always be an admin", ResultError.Forbidden);
 
             workspaceMember.Role = newRole;
             await context.SaveChangesAsync();
-            return Result<WorkspaceMember?>.Success(workspaceMember);
+
+            // abstract data with dto
+            var workspaceMemberDto = WorkspaceMemberMapper.ToWorkspaceMemberDto(workspaceMember);
+            return Result<WorkspaceMemberDto>.Success(workspaceMemberDto);
         }
 
         public async Task<Result<bool>> RemoveWorkspaceMemberAsync(Guid workspaceId, Guid requestingUserId, Guid targetUserId)
@@ -87,9 +91,9 @@ namespace api.Services
             if (workspaceMember.AppUserId == workspace.OwnerId)
                 return Result<bool>.Failure("Owner must transfer ownership before being removed", ResultError.Conflict);
 
-            // confirm that number of admins left is at least 1, although you need to be an admin to even remove another admin
-            var numberOfAdmins = await context.WorkspaceMembers.CountAsync(m => m.Role == WorkspaceRole.Admin && m.WorkspaceId == workspaceId);
-            if (numberOfAdmins == 1) return Result<bool>.Failure("A workspace must have at least 1 admin!", ResultError.Conflict);
+            // confirm that the targetUser is not the last admin and number of admins left is at least 2
+            if (workspaceMember.Role == WorkspaceRole.Admin && await IsLastAdminAsync(workspaceId))
+                return Result<bool>.Failure("A workspace must have at least 1 admin", ResultError.Conflict);
 
             context.WorkspaceMembers.Remove(workspaceMember);
             await context.SaveChangesAsync();
@@ -109,29 +113,41 @@ namespace api.Services
             // ensure the user being removed is neither the owner nor the last admin
             if (workspaceMember.AppUserId == workspace.OwnerId)
                 return Result<bool>.Failure("Owner must transfer ownership before being removed", ResultError.Conflict);
-            
-            var numberOfAdmins = await context.WorkspaceMembers.CountAsync(m => m.Role == WorkspaceRole.Admin && m.WorkspaceId == workspaceId);
-            if (numberOfAdmins == 1)
-            {
-                var lastAdmin = await context.WorkspaceMembers.FirstOrDefaultAsync(w => w.Role == WorkspaceRole.Admin);
-                var isUserLastAdmin = lastAdmin?.AppUserId == userId;
-                if (isUserLastAdmin)
-                    return Result<bool>.
-                        Failure("User cannot be removed cause they are the last admin. Add/promote another user as admin first", ResultError.Conflict);
-            }
+
+             if (workspaceMember.Role == WorkspaceRole.Admin && await IsLastAdminAsync(workspaceId))
+                return Result<bool>.Failure("You are the last admin. Promote another member to admin first", ResultError.Conflict);
 
             context.WorkspaceMembers.Remove(workspaceMember);
             await context.SaveChangesAsync();
             return Result<bool>.Success(true); // user successfully removed from the workspace
         }
 
-        public async Task<WorkspaceMember?> GetWorkspaceMember(Guid targetUserId, Guid workspaceId)
+        public async Task<Result<WorkspaceMemberDto>> GetWorkspaceMemberByIdAsync(Guid targetUserId, Guid workspaceId, Guid requestingUserId)
         {
+            // without this, anyone logged in could read any user's role in any workspace just by guessing ids
+            var isMember = await workspaceAuth.IsWorkspaceMemberAsync(workspaceId, requestingUserId);
+            if (!isMember) return Result<WorkspaceMemberDto>.Failure("Only workspace members can view members", ResultError.Forbidden);
+
             var workspaceMember = await context.WorkspaceMembers.FirstOrDefaultAsync(m =>
                 m.AppUserId == targetUserId && m.WorkspaceId == workspaceId);
-            if (workspaceMember is null) return null;
+            if (workspaceMember is null) return Result<WorkspaceMemberDto>.Failure("Member not found", ResultError.NotFound);
 
-            return workspaceMember;
+            return Result<WorkspaceMemberDto>.Success(WorkspaceMemberMapper.ToWorkspaceMemberDto(workspaceMember));
+        }
+
+        public async Task<Result<List<WorkspaceMemberDto>>> GetWorkspaceMembersAsync(Guid workspaceId, Guid requestingUserId)
+        {
+            var isMember = await workspaceAuth.IsWorkspaceMemberAsync(workspaceId, requestingUserId);
+            if (!isMember) return Result<List<WorkspaceMemberDto>>.Failure("Only workspace members can view members", ResultError.Forbidden);
+
+            var members = await context.WorkspaceMembers.AsNoTracking()
+                .Where(m => m.WorkspaceId == workspaceId)
+                .OrderBy(m => m.Role == WorkspaceRole.Admin ? 0 : 1)
+                .ThenBy(m => m.AppUser.FullName)
+                .Select(m => WorkspaceMemberMapper.ToWorkspaceMemberDto(m))
+                .ToListAsync();
+
+            return Result<List<WorkspaceMemberDto>>.Success(members);
         }
 
         public async Task<Result<WorkspaceMember>> AcceptWorkspaceInviteByTokenAsync(string rawToken, Guid acceptingUserId)
@@ -151,7 +167,8 @@ namespace api.Services
             return await VerifyAndAcceptInviteAsync(invite, acceptingUserId);
         }
 
-        public async Task<Result<WorkspaceMember>> VerifyAndAcceptInviteAsync(WorkspaceInvite invite, Guid acceptingUserId)
+        // private helpers
+        private async Task<Result<WorkspaceMember>> VerifyAndAcceptInviteAsync(WorkspaceInvite invite, Guid acceptingUserId)
         {
             // confirm the invite is still valid
             if (invite.Status != WorkspaceInviteStatus.Pending)
@@ -189,6 +206,14 @@ namespace api.Services
             await context.SaveChangesAsync();
 
             return Result<WorkspaceMember>.Success(member);
+        }
+
+         private async Task<WorkspaceMember?> GetWorkspaceMember(Guid targetUserId, Guid workspaceId) =>
+            await context.WorkspaceMembers.FirstOrDefaultAsync(m => m.AppUserId == targetUserId && m.WorkspaceId == workspaceId);
+
+        private async Task<bool> IsLastAdminAsync(Guid workspaceId)
+        {
+            return await context.WorkspaceMembers.CountAsync(m => m.WorkspaceId == workspaceId && m.Role == WorkspaceRole.Admin) <= 1;
         }
     }
 }

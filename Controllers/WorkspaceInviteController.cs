@@ -27,15 +27,15 @@ namespace api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> GetAllSentWorkspaceInvitesAsync(Guid workspaceId)
+        public async Task<IActionResult> GetAllSentWorkspaceInvitesAsync([FromRoute] Guid workspaceId)
         {
             return HandleResult(await workspaceInviteService.GetAllSentWorkspaceInvitesAsync(workspaceId, CurrentUserId));
         }
 
         [HttpDelete("{inviteId:Guid}")]
-        public async Task<IActionResult> RevokeInviteAsync(Guid inviteId)
+        public async Task<IActionResult> RevokeInviteAsync([FromRoute] Guid workspaceId, Guid inviteId)
         {
-            return HandleResult(await workspaceInviteService.RevokeWorkspaceInviteAsync(inviteId, CurrentUserId));
+            return HandleResult(await workspaceInviteService.RevokeWorkspaceInviteAsync(workspaceId, inviteId, CurrentUserId));
         }
 
         [HttpGet("{inviteId:Guid}")]

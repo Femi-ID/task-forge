@@ -1,8 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Threading.Tasks;
 using api.Dtos.Workspace;
+using api.Dtos.WorkspaceMember;
+using api.Enums;
 using api.Models;
 
 namespace api.Mappers
@@ -28,16 +31,37 @@ namespace api.Mappers
             OwnerId = w.OwnerId
         }).ToList();
 
-        public static WorkspaceDto ToWorkspaceDto(Workspace workspaceModel, Guid userId)
+        public static WorkspaceDto ToWorkspaceDto(Workspace workspaceModel)
         {
             return new WorkspaceDto
             {
                 Id = workspaceModel.Id,
                 Name = workspaceModel.Name,
                 Description = workspaceModel.Description,
-                OwnerId = userId
+                OwnerId = workspaceModel.OwnerId
             };
         }
+
+        // public static readonly Expression<Func<Workspace, WorkspaceDto>> ToWorkspaceDetailDto = w => new WorkspaceDto
+        // {
+        //     Id = w.Id,
+        //     Name = w.Name,
+        //     Description = w.Description,
+        //     OwnerId = w.OwnerId,
+        //     OwnerFullName = w.Owner.FullName,
+        //     WorkspaceMembers = w.WorkspaceMembers
+        //     .Where(w => w.WorkspaceId == )
+        //         .OrderBy(m => m.Role ==WorkspaceRole.Admin ? 0: 1)
+        //         .Select(m => new WorkspaceMemberDto
+        //         {
+        //             FullName = m.AppUser.FullName,
+        //             Email = m.AppUser.Email!,
+        //             Role = m.
+        //         })
+        //         .ToList(),
+        //     CreatedAt = p.CreatedAt,
+        //     UpdatedAt = p.UpdatedAt,
+        // };
 
         // public static Workspace ToWorkspaceModelFromUpdateDto(UpdateWorkspaceDto updateDto)
         // {

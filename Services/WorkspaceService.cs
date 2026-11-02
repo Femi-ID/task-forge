@@ -17,35 +17,49 @@ namespace api.Services
 {
     public class WorkspaceService(AppDbContext context) : IWorkspace, IWorkspaceAuthorization
     {
-        public async Task<Result<Workspace>> CreateWorkspaceAsync(CreateWorkspaceDto workspaceDto, Guid userId)
+        private const string NameTakenMessage = "You already have a workspace with this name";
+        public async Task<Result<WorkspaceDto>> CreateWorkspaceAsync(CreateWorkspaceDto dto, Guid userId)
         {
             // confirm if this workspace name doesn't exist for the user
-            var nameTaken = await context.Workspaces.AnyAsync(w => w.Name == workspaceDto.Name && w.OwnerId == userId);
-            if (nameTaken) return Result<Workspace>.Failure("You already have a workspace with this name", ResultError.Conflict);
+            if (await WorkspaceNameTakenAsync(userId, dto.Name.Trim()))
+                return Result<WorkspaceDto>.Failure(NameTakenMessage, ResultError.Conflict);
 
-            var workspaceModel = WorkspaceMappers.ToWorkspaceModelFromCreateDto(workspaceDto, userId);
+            var workspaceModel = WorkspaceMappers.ToWorkspaceModelFromCreateDto(dto, userId);
             await context.Workspaces.AddAsync(workspaceModel);
 
             // create workspaceMember instance and save
             var workspaceMemberModel = WorkspaceMemberMapper.ToWorkspaceMemberModelFromCreateDto(userId, workspaceModel.Id, WorkspaceRole.Admin);
             await context.WorkspaceMembers.AddAsync(workspaceMemberModel);
 
-            await context.SaveChangesAsync();
-            return Result<Workspace>.Success(workspaceModel);
+            try
+            {
+                await context.SaveChangesAsync();
+            }
+            catch (DbUpdateException ex) when (ex.IsUniqueConstraintViolation())
+            {
+                return Result<WorkspaceDto>.Failure(NameTakenMessage, ResultError.Conflict);
+            }
+
+            var workspaceDto = WorkspaceMappers.ToWorkspaceDto(workspaceModel);
+            return Result<WorkspaceDto>.Success(workspaceDto);
         }
 
         public async Task<Result<bool>> DeleteWorkspaceAsync(Guid id, Guid userId)
         {
-            var workspaceModel = await context.Workspaces.Include(w => w.Projects).FirstOrDefaultAsync(w => w.Id == id);
+            var workspaceModel = await context.Workspaces.FirstOrDefaultAsync(w => w.Id == id);
             if (workspaceModel is null) return Result<bool>.Failure("Workspace does not exist", ResultError.NotFound);
 
             // To confirm that the user has an admin role in the workspace they want to delete
             var isAdmin = await IsWorkspaceAdminMemberAsync(id, userId);
-            if (!isAdmin) return Result<bool>.Failure("403: You have no permission for this request", ResultError.Forbidden);
+            if (!isAdmin) return Result<bool>.Failure("You have no permission for this request", ResultError.Forbidden);
 
-            if (workspaceModel.Projects.Count > 0) return Result<bool>.Failure("Delete workspace projects first!", ResultError.Validation);
+            // Projects are only ever soft-deleted (Archived), so "has any project" would block deletion forever.
+            // Only live projects block it; archived ones are removed with the workspace by the database cascade.
+            var hasActiveProjects = await context.Projects.AnyAsync(p => p.WorkspaceId == id && p.Status != ProjectStatus.Archived);
+            if (hasActiveProjects)
+                return Result<bool>.Failure("Archive all of this workspace's projects before deleting it", ResultError.Validation);
 
-            // Confirms that the user isn't the owner of the project (has transferred ownership)
+            // Confirms that the user is the owner of the project
             if (workspaceModel.OwnerId == userId)
             {
                 context.Workspaces.Remove(workspaceModel);
@@ -55,18 +69,21 @@ namespace api.Services
             return Result<bool>.Failure("You must transfer ownership to another admin member first", ResultError.Validation);
         }
 
-        public async Task<Result<List<Workspace>>> GetAllWorkspacesAsync(WorkspaceQueryObject query, Guid userId)
+        public async Task<Result<PagedResult<WorkspaceDto>>> GetAllWorkspacesAsync(WorkspaceQueryObject query, Guid userId)
         {
-            var workspaces = context.Workspaces
+            var workspaces = context.Workspaces.AsNoTracking()
                 .Where(w => w.WorkspaceMembers.Any(m => m.AppUserId == userId))
-                .Include(w => w.Projects)
-                .Include(w => w.Labels)
+                // .Include(w => w.Projects)
+                // .Include(w => w.Labels)
                 .AsQueryable();
             if (!string.IsNullOrWhiteSpace(query.Name))
             {
-                workspaces = workspaces.Where(w => w.Name == query.Name);
+                foreach (var term in query.Name.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                {
+                    var loweredTerm = term.ToLower();
+                    workspaces = workspaces.Where(w => w.Name.ToLower().Contains(loweredTerm));
+                }
             }
-            // i want to get all the workspaces created on or before the given date
             if (query.BeforeCreatedAt.HasValue)
             {
                 workspaces = workspaces.Where(w => w.CreatedAt <= query.BeforeCreatedAt);
@@ -89,48 +106,94 @@ namespace api.Services
                 workspaces = workspaces.Where(w => w.CreatedAt >= day && w.CreatedAt < day.AddDays(1));
             }
 
+            var totalCount = await workspaces.CountAsync();
+
             //  sorting
             if (!string.IsNullOrWhiteSpace(query.SortBy))
             {
-                if (query.SortBy.Equals("Name"))
+                query.SortBy = query.SortBy.Trim().ToLowerInvariant();
+                if (query.SortBy.Equals("name"))
                     workspaces = query.IsDescending ? workspaces.OrderByDescending(x => x.Name) : workspaces.OrderBy(x => x.Name);
-                if (query.SortBy.Equals("UpdatedAt"))
+                if (query.SortBy.Equals("updatedat"))
                     workspaces = query.IsDescending ? workspaces.OrderByDescending(x => x.UpdatedAt) : workspaces.OrderBy(x => x.UpdatedAt);
-                if (query.SortBy.Equals("CreatedAt"))
+                if (query.SortBy.Equals("createdat"))
                     workspaces = query.IsDescending ? workspaces.OrderByDescending(x => x.CreatedAt) : workspaces.OrderBy(x => x.CreatedAt);
             }
+            workspaces.OrderByDescending(w => w.Id); // tie-breaker: without it, two rows with the same CreatedAt can swap pages
 
-            var skipNumber = (query.PageNumber - 1) * query.PageSize;
-            return Result<List<Workspace>>.Success(await workspaces.Skip(skipNumber).Take(query.PageSize).ToListAsync());
+            var (page, size) = PaginationHelper.Normalize(query.PageNumber, query.PageSize);
+            var skipNumber = (page - 1) * size;
+
+            var items = await workspaces
+                .Skip((page - 1) * size)
+                .Take(size)
+                .Select(w => new WorkspaceDto
+                {
+                    Id = w.Id,
+                    Name = w.Name,
+                    Description = w.Description,
+                    OwnerId = w.OwnerId
+                })
+                .ToListAsync();
+
+            return Result<PagedResult<WorkspaceDto>>.Success(new PagedResult<WorkspaceDto>
+            {
+                Items = items,
+                TotalCount = totalCount,
+                PageNumber = page,
+                PageSize = size
+            });
+
+            // return Result<List<Workspace>>.Success(await workspaces.Skip(skipNumber).Take(query.PageSize).ToListAsync());
         }
 
-        public async Task<Result<Workspace?>> GetWorkspaceByIdAsync(Guid workspaceId, Guid userId)
+        public async Task<Result<WorkspaceDto>> GetWorkspaceByIdAsync(Guid workspaceId, Guid userId)
         {
             var workspaceModel = await context.Workspaces.Include(w => w.WorkspaceMembers)
+                                .AsNoTracking()
                                 .Include(w => w.Projects)
                                 .Include(w => w.Labels)
                                 .FirstOrDefaultAsync(
                                     w => w.Id == workspaceId &&
                                     w.WorkspaceMembers.Any(m => m.AppUserId == userId));
-            if (workspaceModel is null) return Result<Workspace?>.Failure("Workspace does not exist", ResultError.NotFound);
-            return Result<Workspace?>.Success(workspaceModel);
+            if (workspaceModel is null) return Result<WorkspaceDto>.Failure("Workspace does not exist", ResultError.NotFound);
+
+            var workspaceDto = WorkspaceMappers.ToWorkspaceDto(workspaceModel);
+            return Result<WorkspaceDto>.Success(workspaceDto);
         }
 
-        public async Task<Result<Workspace?>> UpdateWorkspaceAsync(Guid id, UpdateWorkspaceDto updateDto, Guid userId)
+        public async Task<Result<WorkspaceDto>> UpdateWorkspaceAsync(Guid id, UpdateWorkspaceDto updateDto, Guid userId)
         {
             var existingWorkspaceModel = await GetTrackedWorkspaceAsync(id);
-            if (existingWorkspaceModel is null) return Result<Workspace?>.Failure("Workspace does not exist", ResultError.NotFound);
+            if (existingWorkspaceModel is null) return Result<WorkspaceDto>.Failure("Workspace does not exist", ResultError.NotFound);
 
             // To confirm first that the user is the owner or an admin member of the workspace
             var isAdmin = await IsWorkspaceAdminMemberAsync(id, userId);
-            if (!isAdmin) return Result<Workspace?>.Failure("403: You are not permitted to make this request", ResultError.Forbidden);
+            if (!isAdmin) return Result<WorkspaceDto>.Failure("You are not permitted to make this request", ResultError.Forbidden);
 
-            if (!string.IsNullOrWhiteSpace(updateDto.Name)) existingWorkspaceModel.Name = updateDto.Name;
-            if (updateDto.Description is not null) existingWorkspaceModel.Description = updateDto.Description;
+            if (!string.IsNullOrWhiteSpace(updateDto.Name))
+            {
+                var newName = updateDto.Name.Trim();
+                // names are unique per OWNER (not per requesting admin), and renaming to your own current name is fine
+                if (await WorkspaceNameTakenAsync(existingWorkspaceModel.OwnerId, newName, excludeWorkspaceId: id))
+                    return Result<WorkspaceDto>.Failure("The owner already has a workspace with this name", ResultError.Conflict);
+                existingWorkspaceModel.Name = updateDto.Name;
+            }
+            if (updateDto.Description is not null)
+                existingWorkspaceModel.Description = updateDto.Description.Length == 0 ? null : updateDto.Description;
             existingWorkspaceModel.UpdatedAt = DateTime.UtcNow;
 
-            await context.SaveChangesAsync();
-            return Result<Workspace?>.Success(existingWorkspaceModel);
+            try
+            {
+                await context.SaveChangesAsync(); // AppDbContext stamps UpdatedAt
+            }
+            catch (DbUpdateException ex) when (ex.IsUniqueConstraintViolation())
+            {
+                return Result<WorkspaceDto>.Failure("The owner already has a workspace with this name", ResultError.Conflict);
+            }
+            
+            var workspaceDto = WorkspaceMappers.ToWorkspaceDto(existingWorkspaceModel);
+            return Result<WorkspaceDto>.Success(workspaceDto);
         }
 
         public async Task<Workspace?> GetTrackedWorkspaceAsync(Guid workspaceId)
@@ -153,7 +216,7 @@ namespace api.Services
             //  get workspace
             var workspace = await GetTrackedWorkspaceAsync(workspaceId);
             if (workspace is null) return Result<bool>.Failure("Workspace does not exist", ResultError.NotFound);
-      
+
             // confirm the requesting user is the workspace owner
             if (workspace.OwnerId != currentOwnerId)
                 return Result<bool>.Failure("Only the current owner can transfer ownership", ResultError.Forbidden);
@@ -164,6 +227,9 @@ namespace api.Services
             if (newOwnerMember is null)
                 return Result<bool>.Failure("The new owner must already be a member of this workspace", ResultError.Validation);
 
+            if (await WorkspaceNameTakenAsync(newOwnerId, workspace.Name, excludeWorkspaceId: workspaceId))
+                return Result<bool>.Failure("The new owner already has a workspace with this name. Rename one of them first", ResultError.Conflict);
+
             newOwnerMember.Role = WorkspaceRole.Admin;
             workspace.OwnerId = newOwnerId;
             await context.SaveChangesAsync();
@@ -173,6 +239,13 @@ namespace api.Services
         public async Task<bool> IsWorkspaceMemberAsync(Guid workspaceId, Guid userId)
         {
             return await context.WorkspaceMembers.AnyAsync(m => m.WorkspaceId == workspaceId && m.AppUserId == userId);
+        }
+
+        private Task<bool> WorkspaceNameTakenAsync(Guid ownerId, string name, Guid excludeWorkspaceId = default)
+        {
+            var loweredName = name.ToLower();
+            return context.Workspaces.AnyAsync(w =>
+                w.OwnerId == ownerId && w.Id != excludeWorkspaceId && w.Name.ToLower() == loweredName);
         }
     }
 }

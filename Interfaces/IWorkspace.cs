@@ -13,10 +13,10 @@ namespace api.Interfaces
 {
     public interface IWorkspace
     {
-        Task<Result<Workspace>> CreateWorkspaceAsync(CreateWorkspaceDto workspaceDto, Guid userId);
-        Task<Result<List<Workspace>>> GetAllWorkspacesAsync(WorkspaceQueryObject query, Guid userId);
-        Task<Result<Workspace?>> GetWorkspaceByIdAsync(Guid Id, Guid userId);
-        Task<Result<Workspace?>> UpdateWorkspaceAsync(Guid Id, UpdateWorkspaceDto updateDto, Guid userId);
+        Task<Result<WorkspaceDto>> CreateWorkspaceAsync(CreateWorkspaceDto workspaceDto, Guid userId);
+        Task<Result<PagedResult<WorkspaceDto>>> GetAllWorkspacesAsync(WorkspaceQueryObject query, Guid userId);
+        Task<Result<WorkspaceDto>> GetWorkspaceByIdAsync(Guid Id, Guid userId);
+        Task<Result<WorkspaceDto>> UpdateWorkspaceAsync(Guid Id, UpdateWorkspaceDto updateDto, Guid userId);
         Task<Result<bool>> DeleteWorkspaceAsync(Guid Id, Guid userId);
         Task<Result<bool>> TransferWorkspaceOwnershipAsync(Guid workspaceId, Guid currentOwnerId, Guid newOwnerId);
     }

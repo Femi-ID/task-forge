@@ -88,6 +88,9 @@ namespace api.Data
 
                 e.HasOne(p => p.Workspace).WithMany(w => w.Projects)
                     .HasForeignKey(p => p.WorkspaceId).OnDelete(DeleteBehavior.Cascade);
+
+                // one project name per workspace (case sensitivity follows the database collation)
+                e.HasIndex(p => new { p.WorkspaceId, p.Name }).IsUnique();
             });
 
             // TaskItem

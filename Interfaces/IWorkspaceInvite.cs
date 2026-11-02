@@ -14,6 +14,6 @@ namespace api.Interfaces
         Task<Result<List<WorkspaceInviteDto>>> GetMyInvitesAsync(Guid invitedUserId);
         Task<Result<List<WorkspaceInviteDto>>> GetAllSentWorkspaceInvitesAsync(Guid workspaceId, Guid requestingUserId);
         Task<Result<WorkspaceInviteDto>> GetWorkspaceInviteByIdAsync(Guid workspaceId, Guid inviteId, Guid requestingUserId);
-        Task<Result<bool>> RevokeWorkspaceInviteAsync(Guid WorkspaceInviteId, Guid requestingUserId);
+        Task<Result<bool>> RevokeWorkspaceInviteAsync(Guid workspaceId, Guid WorkspaceInviteId, Guid requestingUserId);
     }
 }

@@ -1,4 +1,5 @@
 using System;
+using System.Buffers.Text;
 using System.Collections.Generic;
 using System.IdentityModel.Tokens.Jwt;
 using System.Linq;
@@ -30,11 +31,15 @@ namespace api.Services
             };
             claims.AddRange(roles.Select(r => new Claim(ClaimTypes.Role, r)));
 
+            // Short-lived on purpose: the refresh token is what keeps people signed in, and a short life limits the
+            // damage of a stolen access token. For local testing set "JWT:AccessTokenMinutes": 1440 in appsettings.Development.json.
+            var lifetimeMinutes = config.GetValue<int?>("JWT:AccessTokenMinutes") ?? 120; //change to 15 later
+
             var token = new JwtSecurityToken(
                 issuer: config["JWT:Issuer"],
                 audience: config["JWT:Audience"],
                 claims: claims,
-                expires: DateTime.UtcNow.AddDays(1),
+                expires: DateTime.UtcNow.AddMinutes(lifetimeMinutes),
                 signingCredentials: credentials
             );
 
@@ -44,11 +49,12 @@ namespace api.Services
         // Not sure this is the correct implementation
         public (string RawToken, string HashedToken) GenerateRefreshToken()
         {
-            var rawToken = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64));
+            var rawToken = Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(64));
             return (rawToken, HashToken(rawToken));
         }
 
-        public string HashToken(string rawToken) => Convert.ToBase64String(SHA256.HashData(Encoding.UTF8.GetBytes(rawToken)));
+        public string HashToken(string rawToken) => 
+            Convert.ToBase64String(SHA256.HashData(Encoding.UTF8.GetBytes(rawToken)));
 
         // private async Task<bool> ValidateRefreshTokenAsync(Guid userId, string userRequestRefreshToken)
         // {
