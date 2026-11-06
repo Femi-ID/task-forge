@@ -20,6 +20,7 @@ namespace api.Controllers
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);
             var project = await projectService.CreateProjectAsync(dto, workspaceId, CurrentUserId);
+            if (!project.Succeeded) return HandleResult(project);
             return CreatedAtAction(nameof(GetProjectById), new { workspaceId, projectId = project.Data!.Id }, project.Data);
         }
 

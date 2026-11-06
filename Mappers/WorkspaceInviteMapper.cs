@@ -16,7 +16,7 @@ namespace api.Mappers
             return new WorkspaceInvite
             {
                 WorkspaceId = dto.WorkspaceId,
-                InvitedEmail = dto.InvitedEmail,
+                InvitedEmail = dto.InvitedEmail.Trim().ToLowerInvariant(),
                 TokenHash = tokenHash,
                 Role = dto.Role,
                 Status = WorkspaceInviteStatus.Pending,

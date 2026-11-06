@@ -16,7 +16,7 @@ namespace api.Mappers
         {
             return new Workspace
             {
-                Name = workspaceDto.Name,
+                Name = workspaceDto.Name.Trim(),
                 Description = workspaceDto.Description,
                 OwnerId = ownerId
             };
@@ -36,32 +36,46 @@ namespace api.Mappers
             return new WorkspaceDto
             {
                 Id = workspaceModel.Id,
-                Name = workspaceModel.Name,
+                Name = workspaceModel.Name.Trim(),
                 Description = workspaceModel.Description,
-                OwnerId = workspaceModel.OwnerId
+                OwnerId = workspaceModel.OwnerId,
+                OwnerFullName = workspaceModel.Owner.FullName,
+                CreatedAt = workspaceModel.CreatedAt,
+                UpdatedAt = workspaceModel.UpdatedAt,
             };
         }
 
-        // public static readonly Expression<Func<Workspace, WorkspaceDto>> ToWorkspaceDetailDto = w => new WorkspaceDto
-        // {
-        //     Id = w.Id,
-        //     Name = w.Name,
-        //     Description = w.Description,
-        //     OwnerId = w.OwnerId,
-        //     OwnerFullName = w.Owner.FullName,
-        //     WorkspaceMembers = w.WorkspaceMembers
-        //     .Where(w => w.WorkspaceId == )
-        //         .OrderBy(m => m.Role ==WorkspaceRole.Admin ? 0: 1)
-        //         .Select(m => new WorkspaceMemberDto
-        //         {
-        //             FullName = m.AppUser.FullName,
-        //             Email = m.AppUser.Email!,
-        //             Role = m.
-        //         })
-        //         .ToList(),
-        //     CreatedAt = p.CreatedAt,
-        //     UpdatedAt = p.UpdatedAt,
-        // };
+        public static readonly Expression<Func<Workspace, WorkspaceDetailDto>> ToWorkspaceDetailDto = w => new WorkspaceDetailDto
+        {
+            Id = w.Id,
+            Name = w.Name,
+            Description = w.Description,
+            OwnerId = w.OwnerId,
+            OwnerFullName = w.Owner.FullName,
+            MemberCount = w.WorkspaceMembers.Count,
+            CreatedAt = w.CreatedAt,
+            UpdatedAt = w.UpdatedAt,
+            Projects = w.Projects
+                .Where(p => p.Status != ProjectStatus.Archived && p.WorkspaceId == w.Id)
+                .OrderBy(p => p.Name)
+                .Select(p => new WorkspaceProjectSummaryDto
+                {
+                    Id = p.Id,
+                    Name = p.Name,
+                    Status = p.Status,
+                    TaskCount = p.Tasks.Count
+                })
+                .ToList(),
+            Labels = w.Labels
+                .OrderBy(l => l.Name)
+                .Select(l => new WorkspaceLabelDto
+                {
+                    Id = l.Id,
+                    Colour = l.Colour,
+                    Name = l.Name
+                })
+                .ToList(),
+        };
 
         // public static Workspace ToWorkspaceModelFromUpdateDto(UpdateWorkspaceDto updateDto)
         // {

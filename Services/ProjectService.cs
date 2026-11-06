@@ -142,10 +142,6 @@ namespace api.Services
             // var page = Math.Max(1, query.PageNumber);
             // var size = Math.Clamp(query.PageSize, 1, 20);
             var (page, size) = PaginationHelper.Normalize(query.PageNumber, query.PageSize);
-
-            // var projectLists = await projects.Skip((page - 1) * size).Take(size).ToListAsync();
-            // var projectListsDto = ProjectMappers.ToProjectResponseDtoList(projectLists);
-            // return Result<List<ProjectResponseDtoList>>.Success(projectListsDto);
             var items = await orderedProjects
                 .Skip((page - 1) * size)
                 .Take(size)
@@ -171,9 +167,9 @@ namespace api.Services
             // i want the project to display the tasks when fetched- projected straight to the DTO: tasks come back as { id, title, status, priority } pointers, never as entities
             var projectDto = await context.Projects
                 .AsNoTracking()
-                .Include(p => p.Tasks) // to feed the TaskSummaryDto
+                .Where(p => p.Id == projectId && p.WorkspaceId == workspaceId)
                 .Select(ProjectMappers.ToDetailDto)
-                .FirstOrDefaultAsync(p => p.Id == projectId && p.WorkspaceId == workspaceId);
+                .FirstOrDefaultAsync();
             if (projectDto is null) return Result<ProjectResponseDto>.Failure("Project not found", ResultError.NotFound);
 
             // var projectResponseDto = ProjectMappers.ToProjectDto(project);
@@ -196,7 +192,7 @@ namespace api.Services
                 // excluding this project lets "alpha" -> "Alpha" (case-only rename) through
                 if (await ProjectNameTakenAsync(workspaceId, newName, excludeProjectId: projectId))
                     return Result<ProjectResponseDto>.Failure(NameTakenMessage, ResultError.Conflict);
-                existingProject.Name = dto.Name;
+                existingProject.Name = dto.Name.Trim();
             }
 
             // null = unchanged, while "" = clear the description
@@ -204,7 +200,7 @@ namespace api.Services
                 existingProject.Description = dto.Description.Length == 0 ? null : dto.Description;
 
             if (dto.Status.HasValue) existingProject.Status = dto.Status.Value;
-            existingProject.UpdatedAt = DateTime.UtcNow;
+            // existingProject.UpdatedAt = DateTime.UtcNow;
 
             try
             {

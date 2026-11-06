@@ -6,6 +6,7 @@ using api.Data;
 using api.Dtos;
 using api.Dtos.WorkspaceMember;
 using api.Enums;
+using api.Helpers;
 using api.Interfaces;
 using api.Mappers;
 using api.Models;
@@ -37,11 +38,23 @@ namespace api.Services
             // add the target user to the workspace 
             var newWorkspaceMemberModel = WorkspaceMemberMapper.ToWorkspaceMemberModelFromCreateDto(dto.AppUserId, workspaceId, dto.Role);
             await context.WorkspaceMembers.AddAsync(newWorkspaceMemberModel);
-            await context.SaveChangesAsync();
+
+            // await context.SaveChangesAsync();
+            try
+            {
+                await context.SaveChangesAsync();
+            }
+            catch (DbUpdateException ex) when (ex.IsUniqueConstraintViolation())
+            {
+                return Result<WorkspaceMemberDto>.Failure("User is already a member of this workspace", ResultError.Conflict);
+            }
+
+            var memberDto = await GetMemberDtoAsync(workspaceId, dto.AppUserId);
+            return Result<WorkspaceMemberDto>.Success(memberDto!);
 
             // abstract data with dto 
-            var workspaceMemberDto = WorkspaceMemberMapper.ToWorkspaceMemberDto(newWorkspaceMemberModel);
-            return Result<WorkspaceMemberDto>.Success(workspaceMemberDto);
+            // var workspaceMemberDto = WorkspaceMemberMapper.ToWorkspaceMemberDto(newWorkspaceMemberModel);
+            // return Result<WorkspaceMemberDto>.Success(workspaceMemberDto);
         }
 
         public async Task<Result<WorkspaceMemberDto>> UpdateWorkspaceMemberRoleAsync(
@@ -70,8 +83,11 @@ namespace api.Services
             await context.SaveChangesAsync();
 
             // abstract data with dto
-            var workspaceMemberDto = WorkspaceMemberMapper.ToWorkspaceMemberDto(workspaceMember);
-            return Result<WorkspaceMemberDto>.Success(workspaceMemberDto);
+            // var workspaceMemberDto = WorkspaceMemberMapper.ToWorkspaceMemberDto(workspaceMember);
+            // return Result<WorkspaceMemberDto>.Success(workspaceMemberDto);
+
+            var memberDto = await GetMemberDtoAsync(workspaceId, targetUserId);
+            return Result<WorkspaceMemberDto>.Success(memberDto!);
         }
 
         public async Task<Result<bool>> RemoveWorkspaceMemberAsync(Guid workspaceId, Guid requestingUserId, Guid targetUserId)
@@ -114,7 +130,7 @@ namespace api.Services
             if (workspaceMember.AppUserId == workspace.OwnerId)
                 return Result<bool>.Failure("Owner must transfer ownership before being removed", ResultError.Conflict);
 
-             if (workspaceMember.Role == WorkspaceRole.Admin && await IsLastAdminAsync(workspaceId))
+            if (workspaceMember.Role == WorkspaceRole.Admin && await IsLastAdminAsync(workspaceId))
                 return Result<bool>.Failure("You are the last admin. Promote another member to admin first", ResultError.Conflict);
 
             context.WorkspaceMembers.Remove(workspaceMember);
@@ -122,17 +138,20 @@ namespace api.Services
             return Result<bool>.Success(true); // user successfully removed from the workspace
         }
 
-        public async Task<Result<WorkspaceMemberDto>> GetWorkspaceMemberByIdAsync(Guid targetUserId, Guid workspaceId, Guid requestingUserId)
+        public async Task<Result<WorkspaceMemberDto>> GetWorkspaceMemberByIdAsync(Guid workspaceId, Guid requestingUserId, Guid targetUserId)
         {
             // without this, anyone logged in could read any user's role in any workspace just by guessing ids
             var isMember = await workspaceAuth.IsWorkspaceMemberAsync(workspaceId, requestingUserId);
             if (!isMember) return Result<WorkspaceMemberDto>.Failure("Only workspace members can view members", ResultError.Forbidden);
 
-            var workspaceMember = await context.WorkspaceMembers.FirstOrDefaultAsync(m =>
-                m.AppUserId == targetUserId && m.WorkspaceId == workspaceId);
-            if (workspaceMember is null) return Result<WorkspaceMemberDto>.Failure("Member not found", ResultError.NotFound);
+            // var workspaceMember = await context.WorkspaceMembers.FirstOrDefaultAsync(m =>
+            //     m.AppUserId == targetUserId && m.WorkspaceId == workspaceId);
+            // if (workspaceMember is null) return Result<WorkspaceMemberDto>.Failure("Member not found", ResultError.NotFound);
 
-            return Result<WorkspaceMemberDto>.Success(WorkspaceMemberMapper.ToWorkspaceMemberDto(workspaceMember));
+            // return Result<WorkspaceMemberDto>.Success(WorkspaceMemberMapper.ToWorkspaceMemberDto(workspaceMember));
+            var memberDto = await GetMemberDtoAsync(workspaceId, targetUserId);
+            if (memberDto is null) return Result<WorkspaceMemberDto>.Failure("Member not found", ResultError.NotFound);
+            return Result<WorkspaceMemberDto>.Success(memberDto);
         }
 
         public async Task<Result<List<WorkspaceMemberDto>>> GetWorkspaceMembersAsync(Guid workspaceId, Guid requestingUserId)
@@ -144,50 +163,51 @@ namespace api.Services
                 .Where(m => m.WorkspaceId == workspaceId)
                 .OrderBy(m => m.Role == WorkspaceRole.Admin ? 0 : 1)
                 .ThenBy(m => m.AppUser.FullName)
-                .Select(m => WorkspaceMemberMapper.ToWorkspaceMemberDto(m))
+                // .Select(m => WorkspaceMemberMapper.ToWorkspaceMemberDto(m))
+                .Select(WorkspaceMemberMapper.ToDto)
                 .ToListAsync();
 
             return Result<List<WorkspaceMemberDto>>.Success(members);
         }
 
-        public async Task<Result<WorkspaceMember>> AcceptWorkspaceInviteByTokenAsync(string rawToken, Guid acceptingUserId)
+        public async Task<Result<WorkspaceMemberDto>> AcceptWorkspaceInviteByTokenAsync(string rawToken, Guid acceptingUserId)
         {
             // confirm the hashToken exists
             var tokenHash = tokenService.HashToken(rawToken);
             var invite = await context.WorkspaceInvites.FirstOrDefaultAsync(i => i.TokenHash == tokenHash);
-            if (invite is null) return Result<WorkspaceMember>.Failure("Invalid invite", ResultError.NotFound);
+            if (invite is null) return Result<WorkspaceMemberDto>.Failure("Invalid invite", ResultError.NotFound);
             return await VerifyAndAcceptInviteAsync(invite, acceptingUserId);
         }
 
-        public async Task<Result<WorkspaceMember>> AcceptWorkspaceInviteByIdAsync(Guid inviteId, Guid acceptingUserId)
+        public async Task<Result<WorkspaceMemberDto>> AcceptWorkspaceInviteByIdAsync(Guid inviteId, Guid acceptingUserId)
         {
             // confirm the invite exists
             var invite = await context.WorkspaceInvites.FindAsync(inviteId);
-            if (invite is null) return Result<WorkspaceMember>.Failure("Invite not found", ResultError.NotFound);
+            if (invite is null) return Result<WorkspaceMemberDto>.Failure("Invite not found", ResultError.NotFound);
             return await VerifyAndAcceptInviteAsync(invite, acceptingUserId);
         }
 
         // private helpers
-        private async Task<Result<WorkspaceMember>> VerifyAndAcceptInviteAsync(WorkspaceInvite invite, Guid acceptingUserId)
+        private async Task<Result<WorkspaceMemberDto>> VerifyAndAcceptInviteAsync(WorkspaceInvite invite, Guid acceptingUserId)
         {
             // confirm the invite is still valid
             if (invite.Status != WorkspaceInviteStatus.Pending)
-                return Result<WorkspaceMember>.Failure("This invite is no longer valid", ResultError.Conflict);
+                return Result<WorkspaceMemberDto>.Failure("This invite is no longer valid", ResultError.Conflict);
 
             if (invite.ExpireAt <= DateTime.UtcNow)
             {
                 invite.Status = WorkspaceInviteStatus.Expired;
                 await context.SaveChangesAsync();
-                return Result<WorkspaceMember>.Failure("This invite has expired", ResultError.Conflict);
+                return Result<WorkspaceMemberDto>.Failure("This invite has expired", ResultError.Conflict);
             }
 
             // fetch user
             var acceptingUser = await context.Users.FindAsync(acceptingUserId);
-            if (acceptingUser is null) return Result<WorkspaceMember>.Failure("User not found", ResultError.NotFound);
+            if (acceptingUser is null) return Result<WorkspaceMemberDto>.Failure("User not found", ResultError.NotFound);
 
             // confirm the user is the expected receiving user
             if (!string.Equals(acceptingUser.Email, invite.InvitedEmail, StringComparison.OrdinalIgnoreCase))
-                return Result<WorkspaceMember>.Failure("You are not permitted to use this invite!", ResultError.Forbidden);
+                return Result<WorkspaceMemberDto>.Failure("You are not permitted to use this invite!", ResultError.Forbidden);
 
             //  verify the user is not yet a member
             var alreadyMember = await context.WorkspaceMembers.AnyAsync(m =>
@@ -196,24 +216,42 @@ namespace api.Services
             {
                 invite.Status = WorkspaceInviteStatus.Accepted;
                 await context.SaveChangesAsync();
-                return Result<WorkspaceMember>.Failure("You are already a member of this workspace", ResultError.Conflict);
+                return Result<WorkspaceMemberDto>.Failure("You are already a member of this workspace", ResultError.Conflict);
             }
 
             //  add user to the workspace
             var member = WorkspaceMemberMapper.ToWorkspaceMemberModelFromCreateDto(acceptingUserId, invite.WorkspaceId, invite.Role);
             await context.WorkspaceMembers.AddAsync(member);
             invite.Status = WorkspaceInviteStatus.Accepted;
-            await context.SaveChangesAsync();
+            // await context.SaveChangesAsync();
 
-            return Result<WorkspaceMember>.Success(member);
+            try
+            {
+                await context.SaveChangesAsync();
+            }   // member row and invite status commit together or not at all
+            catch (DbUpdateException ex) when (ex.IsUniqueConstraintViolation())
+            {
+                return Result<WorkspaceMemberDto>.Failure("You are already a member of this workspace", ResultError.Conflict);
+            }
+            var memberDto = await GetMemberDtoAsync(invite.WorkspaceId, acceptingUserId);
+            return Result<WorkspaceMemberDto>.Success(memberDto!);
+            // return Result<WorkspaceMemberDto>.Success(member);
         }
 
-         private async Task<WorkspaceMember?> GetWorkspaceMember(Guid targetUserId, Guid workspaceId) =>
-            await context.WorkspaceMembers.FirstOrDefaultAsync(m => m.AppUserId == targetUserId && m.WorkspaceId == workspaceId);
+        private async Task<WorkspaceMember?> GetWorkspaceMember(Guid targetUserId, Guid workspaceId) =>
+           await context.WorkspaceMembers
+            .Include(m => m.AppUser)
+            .FirstOrDefaultAsync(m => m.AppUserId == targetUserId && m.WorkspaceId == workspaceId);
 
         private async Task<bool> IsLastAdminAsync(Guid workspaceId)
         {
             return await context.WorkspaceMembers.CountAsync(m => m.WorkspaceId == workspaceId && m.Role == WorkspaceRole.Admin) <= 1;
         }
+
+        private async Task<WorkspaceMemberDto?> GetMemberDtoAsync(Guid workspaceId, Guid userId) =>
+            await context.WorkspaceMembers.AsNoTracking()
+                .Where(m => m.WorkspaceId == workspaceId && m.AppUserId == userId)
+                .Select(WorkspaceMemberMapper.ToDto)
+                .FirstOrDefaultAsync();
     }
 }

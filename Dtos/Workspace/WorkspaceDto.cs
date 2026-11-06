@@ -16,12 +16,12 @@ namespace api.Dtos.Workspace
         public string? Description { get; set; }
         public Guid OwnerId { get; set; }
         public string OwnerFullName { get; set; } = null!;
+        public DateTime CreatedAt { get; set; }
+        public DateTime? UpdatedAt { get; set; }
         // public List<WorkspaceMember> WorkspaceMembers { get; set; } = [];
         // public AppUser Owner { get; set; } = null!;
         // public List<WorkspaceMember> WorkspaceMembers { get; set; } = new List<WorkspaceMember>();
         // public List<Project> Projects { get; set; } = new List<Project>();
-        // public List<Label> Labels { get; set; } = [];  
-        // public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-        // public DateTime? UpdatedAt { get; set; }
+        // public List<Label> Labels { get; set; } = [];
     }
 }

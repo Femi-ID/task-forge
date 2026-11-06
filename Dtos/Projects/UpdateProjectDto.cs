@@ -9,6 +9,7 @@ namespace api.Dtos.Projects
 {
     public class UpdateProjectDto
     {
+        [MinLength(3)]
         [MaxLength(100)]
         public string? Name { get; set; }
 

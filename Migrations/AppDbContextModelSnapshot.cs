@@ -343,7 +343,8 @@ namespace api.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("WorkspaceId");
+                    b.HasIndex("WorkspaceId", "Name")
+                        .IsUnique();
 
                     b.ToTable("Projects");
                 });

@@ -53,13 +53,13 @@ namespace api.Controllers
             return response.Succeeded ? Ok(response.Data): HandleResult(response); 
         }
 
-        public record TransferOwnershipDto(Guid NewOwnerId);
+        public record TransferOwnershipDto(Guid Id);
         
         [HttpPost("{workspaceId:Guid}/transfer-ownership")]
-        public async Task<IActionResult> TransferWorkspaceOwnership([FromRoute] Guid workspaceId, [FromBody] TransferOwnershipDto Id)
+        public async Task<IActionResult> TransferWorkspaceOwnership([FromRoute] Guid workspaceId, [FromBody] TransferOwnershipDto NewOwner)
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);
-            var response = await workspaceService.TransferWorkspaceOwnershipAsync(workspaceId, CurrentUserId, Id.NewOwnerId);
+            var response = await workspaceService.TransferWorkspaceOwnershipAsync(workspaceId, CurrentUserId, NewOwner.Id);
 
             return response.Succeeded ? NoContent(): HandleResult(response);
         }

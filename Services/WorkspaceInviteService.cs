@@ -121,5 +121,5 @@ namespace api.Services
             await context.SaveChangesAsync();
             return Result<bool>.Success(true);
         }
-    };
+    }
 }
