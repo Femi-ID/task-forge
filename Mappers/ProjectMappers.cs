@@ -8,13 +8,13 @@ using api.Models;
 
 namespace api.Mappers
 {
-    public class ProjectMappers
+    public static class ProjectMappers
     {
         public static Project ToProjectModelFromCreateProjectDto(CreateProjectDto dto, Guid workspaceId)
         {
             return new Project
             {
-                Name = dto.Name,
+                Name = dto.Name.Trim(),
                 Description = dto.Description,
                 Status = dto.Status,
                 WorkspaceId = workspaceId

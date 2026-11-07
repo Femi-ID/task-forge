@@ -66,7 +66,7 @@ namespace api.Services
                 await context.SaveChangesAsync();
                 return Result<bool>.Success(true);
             }
-            return Result<bool>.Failure("You must transfer ownership to another admin member first", ResultError.Validation);
+            return Result<bool>.Failure("Only the workspace owner can delete it. Ask the owner to transfer ownership to you first", ResultError.Validation);
         }
 
         public async Task<Result<PagedResult<WorkspaceDto>>> GetAllWorkspacesAsync(WorkspaceQueryObject query, Guid userId)
@@ -108,23 +108,31 @@ namespace api.Services
 
             var totalCount = await workspaces.CountAsync();
 
-            //  sorting
-            if (!string.IsNullOrWhiteSpace(query.SortBy))
+            // sorting
+            IOrderedQueryable<Workspace> ordered = (query.SortBy ?? string.Empty).Trim().ToLowerInvariant() switch
             {
-                query.SortBy = query.SortBy.Trim().ToLowerInvariant();
-                if (query.SortBy.Equals("name"))
-                    workspaces = query.IsDescending ? workspaces.OrderByDescending(x => x.Name) : workspaces.OrderBy(x => x.Name);
-                if (query.SortBy.Equals("updatedat"))
-                    workspaces = query.IsDescending ? workspaces.OrderByDescending(x => x.UpdatedAt) : workspaces.OrderBy(x => x.UpdatedAt);
-                if (query.SortBy.Equals("createdat"))
-                    workspaces = query.IsDescending ? workspaces.OrderByDescending(x => x.CreatedAt) : workspaces.OrderBy(x => x.CreatedAt);
-            }
-            workspaces.OrderByDescending(w => w.Id); // tie-breaker: without it, two rows with the same CreatedAt can swap pages
+                "name" => query.IsDescending ? workspaces.OrderByDescending(w => w.Name) : workspaces.OrderBy(w => w.Name),
+                "updatedat" => query.IsDescending ? workspaces.OrderByDescending(w => w.UpdatedAt) : workspaces.OrderBy(w => w.UpdatedAt),
+                "createdat" => query.IsDescending ? workspaces.OrderByDescending(w => w.CreatedAt) : workspaces.OrderBy(w => w.CreatedAt),
+                _ => workspaces.OrderByDescending(w => w.CreatedAt)
+            };
+            var orderedWorkspaces = ordered.ThenBy(w => w.Id);
+
+            //  sorting
+            // if (!string.IsNullOrWhiteSpace(query.SortBy))
+            // {
+            //     query.SortBy = query.SortBy.Trim().ToLowerInvariant();
+            //     if (query.SortBy.Equals("name"))
+            //         workspaces = query.IsDescending ? workspaces.OrderByDescending(x => x.Name) : workspaces.OrderBy(x => x.Name);
+            //     if (query.SortBy.Equals("updatedat"))
+            //         workspaces = query.IsDescending ? workspaces.OrderByDescending(x => x.UpdatedAt) : workspaces.OrderBy(x => x.UpdatedAt);
+            //     if (query.SortBy.Equals("createdat"))
+            //         workspaces = query.IsDescending ? workspaces.OrderByDescending(x => x.CreatedAt) : workspaces.OrderBy(x => x.CreatedAt);
+            // }
+            // workspaces.OrderByDescending(w => w.Id); // tie-breaker: without it, two rows with the same CreatedAt can swap pages
 
             var (page, size) = PaginationHelper.Normalize(query.PageNumber, query.PageSize);
-            var skipNumber = (page - 1) * size;
-
-            var items = await workspaces
+            var items = await orderedWorkspaces
                 .Skip((page - 1) * size)
                 .Take(size)
                 .Select(w => new WorkspaceDto
@@ -143,23 +151,19 @@ namespace api.Services
                 PageNumber = page,
                 PageSize = size
             });
-
             // return Result<List<Workspace>>.Success(await workspaces.Skip(skipNumber).Take(query.PageSize).ToListAsync());
         }
 
-        public async Task<Result<WorkspaceDto>> GetWorkspaceByIdAsync(Guid workspaceId, Guid userId)
+        public async Task<Result<WorkspaceDetailDto>> GetWorkspaceByIdAsync(Guid workspaceId, Guid userId)
         {
-            var workspaceModel = await context.Workspaces.Include(w => w.WorkspaceMembers)
-                                .AsNoTracking()
-                                .Include(w => w.Projects)
-                                .Include(w => w.Labels)
-                                .FirstOrDefaultAsync(
-                                    w => w.Id == workspaceId &&
-                                    w.WorkspaceMembers.Any(m => m.AppUserId == userId));
-            if (workspaceModel is null) return Result<WorkspaceDto>.Failure("Workspace does not exist", ResultError.NotFound);
+            var workspaceDetail = await context.Workspaces
+                .Where(w => w.Id == workspaceId && w.WorkspaceMembers.Any(m => m.AppUserId == userId))
+                .Select(WorkspaceMappers.ToWorkspaceDetailDto)
+                .AsSplitQuery()
+                .FirstOrDefaultAsync();
+            if (workspaceDetail is null) return Result<WorkspaceDetailDto>.Failure("Workspace does not exist", ResultError.NotFound);
 
-            var workspaceDto = WorkspaceMappers.ToWorkspaceDto(workspaceModel);
-            return Result<WorkspaceDto>.Success(workspaceDto);
+            return Result<WorkspaceDetailDto>.Success(workspaceDetail);
         }
 
         public async Task<Result<WorkspaceDto>> UpdateWorkspaceAsync(Guid id, UpdateWorkspaceDto updateDto, Guid userId)
@@ -191,7 +195,7 @@ namespace api.Services
             {
                 return Result<WorkspaceDto>.Failure("The owner already has a workspace with this name", ResultError.Conflict);
             }
-            
+
             var workspaceDto = WorkspaceMappers.ToWorkspaceDto(existingWorkspaceModel);
             return Result<WorkspaceDto>.Success(workspaceDto);
         }

@@ -18,7 +18,7 @@ namespace api.Interfaces
         Task<Result<WorkspaceMemberDto>> GetWorkspaceMemberByIdAsync(Guid targetUserId, Guid workspaceId, Guid requestingUserId);
         Task<Result<List<WorkspaceMemberDto>>> GetWorkspaceMembersAsync(Guid workspaceId, Guid requestingUserId);
         // Task<Result<WorkspaceMember>> VerifyAndAcceptInviteAsync(WorkspaceInvite invite, Guid acceptingUserId);
-        Task<Result<WorkspaceMember>> AcceptWorkspaceInviteByTokenAsync(string rawToken, Guid acceptingUserId);
-        Task<Result<WorkspaceMember>> AcceptWorkspaceInviteByIdAsync(Guid inviteId, Guid acceptingUserId);
+        Task<Result<WorkspaceMemberDto>> AcceptWorkspaceInviteByTokenAsync(string rawToken, Guid acceptingUserId);
+        Task<Result<WorkspaceMemberDto>> AcceptWorkspaceInviteByIdAsync(Guid inviteId, Guid acceptingUserId);
     }
 }

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Threading.Tasks;
 using api.Dtos.WorkspaceMember;
 using api.Enums;
@@ -34,5 +35,16 @@ namespace api.Mappers
                 IsOwner = workspaceMember.AppUserId == workspaceMember.Workspace.OwnerId
             };
         }
+
+        public static readonly Expression<Func<WorkspaceMember, WorkspaceMemberDto>> ToDto = m => new WorkspaceMemberDto
+        {
+            AppUserId = m.AppUserId,
+            WorkspaceId = m.WorkspaceId,
+            FullName = m.AppUser.FullName,
+            Email = m.AppUser.Email!,
+            Role = m.Role,
+            JoinedAt = m.JoinedAt,
+            IsOwner = m.AppUserId == m.Workspace.OwnerId
+        };
     }
 }

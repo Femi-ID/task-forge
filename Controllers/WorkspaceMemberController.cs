@@ -20,6 +20,7 @@ namespace api.Controllers
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);
             var response = await workspaceMemberService.AddWorkspaceMemberAsync(workspaceId, CurrentUserId, memberDto);
+            if (!response.Succeeded) return HandleResult(response);
             return CreatedAtAction(nameof(GetWorkspaceMemberById),
                                     new { workspaceId = response.Data!.WorkspaceId, targetUserId = response.Data!.AppUserId }, 
                                     response.Data);
@@ -34,8 +35,8 @@ namespace api.Controllers
         [HttpGet("{targetUserId:Guid}")]
         public async Task<IActionResult> GetWorkspaceMemberById([FromRoute] Guid workspaceId, Guid targetUserId)
         {
-            var response = await workspaceMemberService.GetWorkspaceMemberByIdAsync(targetUserId, workspaceId, CurrentUserId);
-            return (response is null) ? BadRequest("No user found") : Ok(response);
+            var response = await workspaceMemberService.GetWorkspaceMemberByIdAsync(workspaceId, CurrentUserId, targetUserId);
+            return HandleResult(response);
         }
 
         public record UpdateWorkspaceMemberRoleDto(Guid TargetUserId, WorkspaceRole NewRole);

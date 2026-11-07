@@ -46,7 +46,6 @@ namespace api.Services
             return new JwtSecurityTokenHandler().WriteToken(token);
         }
 
-        // Not sure this is the correct implementation
         public (string RawToken, string HashedToken) GenerateRefreshToken()
         {
             var rawToken = Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(64));

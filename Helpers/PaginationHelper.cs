@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 
 namespace api.Helpers
 {
-    public class PaginationHelper
+    public static class PaginationHelper
     {
         public const int MaxPageSize = 20;
         private const int MaxPageNumber = 100_000; // keeps (page - 1) * size far away from int overflow
