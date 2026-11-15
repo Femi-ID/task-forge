@@ -41,7 +41,8 @@ namespace api.Services
             }
 
             var workspaceDto = await context.Workspaces.AsNoTracking()
-                .Where(w => w.Id == workspaceModel.Id)   // or existingWorkspaceModel.Id in Update
+                .Where(w => w.Id == workspaceModel.Id)
+                .Include(w => w.Owner.FullName)   // or existingWorkspaceModel.Id in Update
                 .Select(WorkspaceMappers.ToWorkspaceDto)
                 .FirstAsync();
             return Result<WorkspaceDto>.Success(workspaceDto);
@@ -203,6 +204,7 @@ namespace api.Services
 
             var workspaceDto = await context.Workspaces.AsNoTracking()
                 .Where(w => w.Id == existingWorkspaceModel.Id)
+                .Include(w => w.Owner.FullName)
                 .Select(WorkspaceMappers.ToWorkspaceDto)
                 .FirstAsync();
             return Result<WorkspaceDto>.Success(workspaceDto);
