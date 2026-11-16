@@ -211,13 +211,15 @@ namespace api.Services
             task.Status = newStatus;
             await context.SaveChangesAsync();
 
-            // var taskDto = await context.Tasks.AsNoTracking()
+            
             var taskDto = new TaskStatusResponseDto
             {
                 Id = task.Id,
                 Title = task.Title,
-                Status = task.Status
+                Status = task.Status,
+                DueDate = task.DueDate
             };
+            // var taskDto = await context.Tasks.AsNoTracking()
             //     .Where(t => t.Id == taskId)
             //     .Select(TaskMappers.ToListDto)
             //     .FirstAsync();

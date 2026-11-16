@@ -42,5 +42,6 @@ namespace api.Dtos.Tasks
     public Guid Id { get; set; }
     public required string Title { get; set; }
     public TaskItemStatus Status { get; set; }
+    public required DateTime DueDate { get; set; }
 }
 }
