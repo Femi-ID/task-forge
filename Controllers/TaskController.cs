@@ -12,8 +12,8 @@ namespace api.Controllers
 {
     [Route("api/v1/workspaces/{workspaceId:Guid}/projects/{projectId:Guid}/tasks")]
     [ApiController, Authorize]
-    
-    public class TaskController(ITaskService taskService): ApiControllerBase
+
+    public class TaskController(ITaskService taskService) : ApiControllerBase
     {
         [HttpPost]
         public async Task<IActionResult> CreateTask([FromRoute] Guid workspaceId, [FromRoute] Guid projectId, [FromBody] CreateTaskDto dto)
@@ -29,7 +29,7 @@ namespace api.Controllers
             return HandleResult(await taskService.GetAllTasksAsync(workspaceId, projectId, CurrentUserId, query));
         }
 
-         [HttpGet("{taskId:Guid}")]
+        [HttpGet("{taskId:Guid}")]
         public async Task<IActionResult> GetTaskById([FromRoute] Guid workspaceId, [FromRoute] Guid projectId, [FromRoute] Guid taskId)
         {
             return HandleResult(await taskService.GetTaskByIdAsync(workspaceId, projectId, taskId, CurrentUserId));

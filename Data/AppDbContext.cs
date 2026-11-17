@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using api.Models;
@@ -20,6 +21,7 @@ namespace api.Data
         public DbSet<Label> Labels => Set<Label>();
         public DbSet<TaskLabel> TaskLabels => Set<TaskLabel>();
         public DbSet<WorkspaceInvite> WorkspaceInvites => Set<WorkspaceInvite>();
+        public DbSet<ActivityLog> ActivityLogs => Set<ActivityLog>();
 
         // FIXED values: HasData must never use Guid.NewGuid() at model-build time, otherwise
         // every `migrations add` sees "different" seed rows and generates delete+insert churn.
@@ -169,6 +171,14 @@ namespace api.Data
                 e.HasIndex(i => i.TokenHash).IsUnique();
                 e.Property(i => i.InvitedEmail).HasMaxLength(256);
                 e.Property(i => i.TokenHash).HasMaxLength(128);
+            });
+
+            builder.Entity<ActivityLog>(e =>
+            {
+                e.HasOne(a => a.Workspace).WithMany()
+                .HasForeignKey(a => a.WorkspaceId).OnDelete(DeleteBehavior.Cascade);
+
+                e.Property(a => a.Description).HasMaxLength(500);
             });
         }
 
