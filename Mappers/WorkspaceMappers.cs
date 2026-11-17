@@ -31,19 +31,30 @@ namespace api.Mappers
             OwnerId = w.OwnerId
         }).ToList();
 
-        public static WorkspaceDto ToWorkspaceDto(Workspace workspaceModel)
+        // public static WorkspaceDto ToWorkspaceDto(Workspace workspaceModel)
+        // {
+        //     return new WorkspaceDto
+        //     {
+        //         Id = workspaceModel.Id,
+        //         Name = workspaceModel.Name.Trim(),
+        //         Description = workspaceModel.Description,
+        //         OwnerId = workspaceModel.OwnerId,
+        //         OwnerFullName = workspaceModel.Owner.FullName,
+        //         CreatedAt = workspaceModel.CreatedAt,
+        //         UpdatedAt = workspaceModel.UpdatedAt,
+        //     };
+        // }
+
+        public static readonly Expression<Func<Workspace, WorkspaceDto>> ToWorkspaceDto = w => new WorkspaceDto
         {
-            return new WorkspaceDto
-            {
-                Id = workspaceModel.Id,
-                Name = workspaceModel.Name.Trim(),
-                Description = workspaceModel.Description,
-                OwnerId = workspaceModel.OwnerId,
-                OwnerFullName = workspaceModel.Owner.FullName,
-                CreatedAt = workspaceModel.CreatedAt,
-                UpdatedAt = workspaceModel.UpdatedAt,
-            };
-        }
+            Id = w.Id,
+            Name = w.Name,
+            Description = w.Description,
+            OwnerId = w.OwnerId,
+            OwnerFullName = w.Owner.FullName,
+            CreatedAt = w.CreatedAt,
+            UpdatedAt = w.UpdatedAt,
+        };
 
         public static readonly Expression<Func<Workspace, WorkspaceDetailDto>> ToWorkspaceDetailDto = w => new WorkspaceDetailDto
         {

@@ -40,7 +40,11 @@ namespace api.Services
                 return Result<WorkspaceDto>.Failure(NameTakenMessage, ResultError.Conflict);
             }
 
-            var workspaceDto = WorkspaceMappers.ToWorkspaceDto(workspaceModel);
+            var workspaceDto = await context.Workspaces.AsNoTracking()
+                .Where(w => w.Id == workspaceModel.Id)
+                .Include(w => w.Owner.FullName)   // or existingWorkspaceModel.Id in Update
+                .Select(WorkspaceMappers.ToWorkspaceDto)
+                .FirstAsync();
             return Result<WorkspaceDto>.Success(workspaceDto);
         }
 
@@ -140,7 +144,10 @@ namespace api.Services
                     Id = w.Id,
                     Name = w.Name,
                     Description = w.Description,
-                    OwnerId = w.OwnerId
+                    OwnerId = w.OwnerId,
+                    OwnerFullName = w.Owner.FullName,
+                    CreatedAt = w.CreatedAt,
+                    UpdatedAt = w.UpdatedAt,
                 })
                 .ToListAsync();
 
@@ -175,17 +182,16 @@ namespace api.Services
             var isAdmin = await IsWorkspaceAdminMemberAsync(id, userId);
             if (!isAdmin) return Result<WorkspaceDto>.Failure("You are not permitted to make this request", ResultError.Forbidden);
 
-            if (!string.IsNullOrWhiteSpace(updateDto.Name))
+            if (!string.IsNullOrWhiteSpace(updateDto.Name.Trim()))
             {
                 var newName = updateDto.Name.Trim();
                 // names are unique per OWNER (not per requesting admin), and renaming to your own current name is fine
                 if (await WorkspaceNameTakenAsync(existingWorkspaceModel.OwnerId, newName, excludeWorkspaceId: id))
                     return Result<WorkspaceDto>.Failure("The owner already has a workspace with this name", ResultError.Conflict);
-                existingWorkspaceModel.Name = updateDto.Name;
+                existingWorkspaceModel.Name = newName;
             }
             if (updateDto.Description is not null)
                 existingWorkspaceModel.Description = updateDto.Description.Length == 0 ? null : updateDto.Description;
-            existingWorkspaceModel.UpdatedAt = DateTime.UtcNow;
 
             try
             {
@@ -196,7 +202,11 @@ namespace api.Services
                 return Result<WorkspaceDto>.Failure("The owner already has a workspace with this name", ResultError.Conflict);
             }
 
-            var workspaceDto = WorkspaceMappers.ToWorkspaceDto(existingWorkspaceModel);
+            var workspaceDto = await context.Workspaces.AsNoTracking()
+                .Where(w => w.Id == existingWorkspaceModel.Id)
+                .Include(w => w.Owner.FullName)
+                .Select(WorkspaceMappers.ToWorkspaceDto)
+                .FirstAsync();
             return Result<WorkspaceDto>.Success(workspaceDto);
         }
 

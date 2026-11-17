@@ -34,7 +34,7 @@ namespace api.Services
             // avoid re-creating another invite for a user who currently has a valid invite link
             var duplicatePending = await context.WorkspaceInvites.AnyAsync(i =>
                 i.WorkspaceId == dto.WorkspaceId &&
-                i.InvitedEmail == dto.InvitedEmail &&
+                i.InvitedEmail == invitedEmail &&
                 i.Status == WorkspaceInviteStatus.Pending &&
                 i.ExpireAt > DateTime.UtcNow);
             if (duplicatePending) return Result<WorkspaceInviteResponseDto>.Failure("An invite to this workspace is already pending for this email", ResultError.Conflict);
@@ -62,11 +62,11 @@ namespace api.Services
             var user = await context.Users.FirstOrDefaultAsync(u => u.Id == invitedUserId);
             if (user?.Email is null) return Result<List<WorkspaceInviteDto>>.Failure("User not found", ResultError.NotFound);
 
-            var email = user.Email.ToLowerInvariant();
+            var loweredEmail = user.Email.ToLowerInvariant();
             var invitations = await context.WorkspaceInvites.AsNoTracking()
                 .Include(i => i.Workspace).Include(i => i.InvitedByUser)
                 .Where(i =>
-                        i.InvitedEmail == user.Email &&
+                        i.InvitedEmail == loweredEmail &&
                         i.Status == WorkspaceInviteStatus.Pending &&
                         i.ExpireAt > DateTime.UtcNow)
                 .OrderByDescending(i => i.ExpireAt)
