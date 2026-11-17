@@ -36,7 +36,7 @@ namespace api.Mappers
             DueDate = taskItem.DueDate,
             AssigneeId = taskItem.AssigneeId,
             AssigneeFullName = taskItem.Assignee != null ? taskItem.Assignee.FullName : null,
-            CommentCount = taskItem.Comments.Count,
+            CommentCount = taskItem.Comments.Count(c => !c.IsDeleted),
             CreatedAt = taskItem.CreatedAt,
             UpdatedAt = taskItem.UpdatedAt
         };
@@ -55,7 +55,7 @@ namespace api.Mappers
             Labels = t.TaskLabels
                 .Select(tl => new TaskLabelDto { Id = tl.Label.Id, Name = tl.Label.Name, Colour = tl.Label.Colour })
                 .ToList(),
-            CommentCount = t.Comments.Count,
+            CommentCount = t.Comments.Count(c => !c.IsDeleted),
             CreatedAt = t.CreatedAt,
             UpdatedAt = t.UpdatedAt
         };
