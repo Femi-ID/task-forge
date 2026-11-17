@@ -15,7 +15,8 @@ namespace api.Services
 {
     public class TaskService(
         AppDbContext context,
-        IWorkspaceAuthorization workspaceAuth) : ITaskService
+        IWorkspaceAuthorization workspaceAuth,
+        IActivityLogService activityLog) : ITaskService
     {
 
         public async Task<Result<TaskResponseDto>> CreateTaskAsync(CreateTaskDto dto, Guid workspaceId, Guid projectId, Guid userId)
@@ -34,6 +35,7 @@ namespace api.Services
 
             var taskModel = TaskMappers.ToTaskModelFromCreateDto(dto, projectId);
             await context.Tasks.AddAsync(taskModel);
+            await activityLog.LogAsync(workspaceId, userId, "task.created", $"created task- '{taskModel.Title}'", taskModel.Id, projectId);
             await context.SaveChangesAsync();
 
             string? assigneeFullName = null;
@@ -80,6 +82,7 @@ namespace api.Services
             var task = await context.Tasks.FirstOrDefaultAsync(t => t.Id == taskId && t.ProjectId == projectId && t.Project.WorkspaceId == workspaceId);
             if (task is null) return Result<bool>.Failure("Task not found", ResultError.NotFound);
 
+            await activityLog.LogAsync(workspaceId, userId, "task.deleted", $"deleted task '{task.Title}'", taskId, projectId);
             context.Tasks.Remove(task);
             await context.SaveChangesAsync();
             return Result<bool>.Success(true);
@@ -164,6 +167,15 @@ namespace api.Services
                 t.Id == taskId && t.ProjectId == projectId && t.Project.WorkspaceId == workspaceId);
             if (task is null) return Result<TaskResponseDto>.Failure("Task not found", ResultError.NotFound);
 
+            // checking for possible changes to be added to the activityLogs
+            var changed = new List<string>();
+            if (!string.IsNullOrWhiteSpace(dto.Title) && dto.Title.Trim() != task.Title) changed.Add("title");
+            if (dto.Priority.HasValue && dto.Priority.Value != task.Priority) changed.Add("priority");
+            if (dto.DueDate.HasValue && dto.DueDate.Value != task.DueDate) changed.Add("due date");
+            if (dto.Description is not null && dto.Description != task.Description) changed.Add("description");
+            if (dto.AssigneeId.HasValue && dto.AssigneeId != task.AssigneeId) changed.Add("assignee");
+
+            // updating the task instance
             if (!string.IsNullOrWhiteSpace(dto.Title)) task.Title = dto.Title.Trim();
             if (dto.Description is not null) task.Description = dto.Description.Length == 0 ? null : dto.Description;
             if (dto.Priority.HasValue) task.Priority = dto.Priority.Value;
@@ -186,9 +198,10 @@ namespace api.Services
                 }
             }
 
+            if (changed.Count > 0)
+                await activityLog.LogAsync(workspaceId, userId, "task.updated", $"updated {string.Join(", ", changed)} on task '{task.Title}'", taskId, projectId);
+
             await context.SaveChangesAsync();
-            // this is another db call to get the task, 
-            // is this resourceful given that i've already done this earlier to get and update this entity
             var taskDto = await context.Tasks.AsNoTracking()
                 .Where(t => t.Id == taskId)
                 .Select(TaskMappers.ToDetailDto)
@@ -208,10 +221,14 @@ namespace api.Services
             if (!isAdmin && !isAssignee)
                 return Result<TaskStatusResponseDto>.Failure("Only the assignee or a workspace admin can change this task's status.", ResultError.Forbidden);
 
+            var oldStatus = task.Status;
             task.Status = newStatus;
+            if (oldStatus != newStatus)
+                await activityLog.LogAsync(workspaceId, userId, "task.status_changed", $"changed status of '{task.Title}' from {oldStatus} to {newStatus}", taskId, projectId);
+
             await context.SaveChangesAsync();
 
-            
+
             var taskDto = new TaskStatusResponseDto
             {
                 Id = task.Id,
@@ -223,7 +240,7 @@ namespace api.Services
             //     .Where(t => t.Id == taskId)
             //     .Select(TaskMappers.ToListDto)
             //     .FirstAsync();
-            return Result<TaskStatusResponseDto>.Success(taskDto); // why is the return result type- TaskResponseDtoList ?
+            return Result<TaskStatusResponseDto>.Success(taskDto);
         }
     }
 }

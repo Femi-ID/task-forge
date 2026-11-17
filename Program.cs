@@ -103,6 +103,9 @@ builder.Services.AddScoped<IWorkspaceInvite, WorkspaceInviteService>();
 builder.Services.AddScoped<IProjectService, ProjectService>();
 builder.Services.AddScoped<ITaskService, TaskService>();
 builder.Services.AddScoped<ICommentService, CommentService>();
+builder.Services.AddScoped<ILabelService, LabelService>();
+builder.Services.AddScoped<ITaskLabelService, TaskLabelService>();
+builder.Services.AddScoped<IActivityLogService, ActivityLogService>();
 
 var app = builder.Build();
 
