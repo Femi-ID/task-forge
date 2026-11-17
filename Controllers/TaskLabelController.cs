@@ -9,19 +9,19 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace api.Controllers
 {
-    [Route("api/v1/workspaces/{workspaceId:Guid}/projects/{projectId:Guid}/tasks/{taskId:Guid}/labels/{labelId:Guid}")]
+    [Route("api/v1/workspaces/{workspaceId:Guid}/projects/{projectId:Guid}/tasks/{taskId:Guid}/labels")]
     [ApiController, Authorize]
     public class TaskLabelController(ITaskLabelService taskLabelService) : ApiControllerBase
     {
-        [HttpPost]
+        [HttpPost("{labelId:Guid}")]
         public async Task<IActionResult> AttachLabel([FromRoute] Guid workspaceId, [FromRoute] Guid projectId, [FromRoute] Guid taskId, [FromRoute] Guid labelId)
         {
             var result = await taskLabelService.AttachLabelAsync(workspaceId, projectId, taskId, labelId, CurrentUserId);
             if (!result.Succeeded) return HandleResult(result);
-            return CreatedAtAction(nameof(GetTaskLabels), new { workspaceId, projectId, taskId, CurrentUserId}, result.Data);
+            return CreatedAtAction(nameof(GetTaskLabels), new { workspaceId, projectId, taskId }, result.Data);
         }
 
-        [HttpDelete]
+        [HttpDelete("{labelId:Guid}")]
         public async Task<IActionResult> DetachLabel([FromRoute] Guid workspaceId, [FromRoute] Guid projectId, [FromRoute] Guid taskId, [FromRoute] Guid labelId)
         {
             var result = await taskLabelService.DetachLabelAsync(workspaceId, projectId, taskId, labelId, CurrentUserId);

@@ -39,16 +39,16 @@ namespace api.Mappers
                 .OrderBy(r => r.CreatedAt)
                 .Select(r => new CommentResponseDto
                 {
-                    Id = c.Id,
-                    Content = c.IsDeleted ? "[deleted]" : c.Content,
-                    TaskItemId = c.TaskItemId,
-                    AuthorId = c.AuthorId,
-                    AuthorFullName = c.Author.FullName,
-                    ParentCommentId = c.ParentCommentId,
-                    IsDeleted = c.IsDeleted,
-                    IsEdited = c.UpdatedAt.HasValue,
-                    CreatedAt = c.CreatedAt,
-                    UpdatedAt = c.UpdatedAt,
+                    Id = r.Id,
+                    Content = r.IsDeleted ? "[deleted]" : r.Content,
+                    TaskItemId = r.TaskItemId,
+                    AuthorId = r.AuthorId,
+                    AuthorFullName = r.Author.FullName,
+                    ParentCommentId = r.ParentCommentId,
+                    IsDeleted = r.IsDeleted,
+                    IsEdited = r.UpdatedAt.HasValue,
+                    CreatedAt = r.CreatedAt,
+                    UpdatedAt = r.UpdatedAt,
                     Replies = new List<CommentResponseDto>()
                 }).ToList()
         };

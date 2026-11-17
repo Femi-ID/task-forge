@@ -12,20 +12,26 @@ namespace api.Controllers
 {
     [Route("api/v1/workspaces/{workspaceId:Guid}/labels")]
     [ApiController, Authorize]
-    public class LabelController(ILabelService labelService): ApiControllerBase
+    public class LabelController(ILabelService labelService) : ApiControllerBase
     {
         [HttpPost]
         public async Task<IActionResult> CreateLabel([FromRoute] Guid workspaceId, [FromBody] CreateLabelDto dto)
         {
             var result = await labelService.CreateLabelAsync(dto, workspaceId, CurrentUserId);
             if (!result.Succeeded) return HandleResult(result);
-            return CreatedAtAction(nameof(TaskController.GetTaskById), new { workspaceId, taskId = result.Data!.Id }, result.Data);
+            return CreatedAtAction(nameof(GetLabelById), new { workspaceId, labelId = result.Data!.Id }, result.Data);
         }
 
         [HttpGet]
         public async Task<IActionResult> GetAllLabels([FromRoute] Guid workspaceId)
         {
             return HandleResult(await labelService.GetAllLabelsAsync(workspaceId, CurrentUserId));
+        }
+
+        [HttpGet("{labelId:Guid}")]
+        public async Task<IActionResult> GetLabelById([FromRoute] Guid workspaceId, [FromRoute] Guid labelId)
+        {
+            return HandleResult(await labelService.GetLabelByIdAsync(workspaceId, labelId, CurrentUserId));
         }
 
         [HttpPatch("{labelId:Guid}")]
