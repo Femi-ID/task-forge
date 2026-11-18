@@ -69,6 +69,20 @@ namespace api.Services
             return Result<List<LabelResponseDto>>.Success(labelsDto);
         }
 
+        public async Task<Result<LabelResponseDto>> GetLabelByIdAsync(Guid workspaceId, Guid labelId, Guid userId)
+        {
+            var isMember = await workspaceAuth.IsWorkspaceMemberAsync(workspaceId, userId);
+            if (!isMember) return Result<LabelResponseDto>.Failure("Only workspace members can view labels.", ResultError.Forbidden);
+
+            var labelDto = await context.Labels.AsNoTracking()
+                .Where(l => l.Id == labelId && l.WorkspaceId == workspaceId)
+                .Select(l => new LabelResponseDto { Id = l.Id, Name = l.Name, Colour = l.Colour, WorkspaceId = l.WorkspaceId })
+                .FirstOrDefaultAsync();
+
+            if (labelDto is null) return Result<LabelResponseDto>.Failure("Label not found", ResultError.NotFound);
+            return Result<LabelResponseDto>.Success(labelDto);
+        }
+
         public async Task<Result<LabelResponseDto>> UpdateLabelAsync(UpdateLabelDto dto, Guid workspaceId, Guid labelId, Guid userId)
         {
             var isAdmin = await workspaceAuth.IsWorkspaceAdminMemberAsync(workspaceId, userId);
