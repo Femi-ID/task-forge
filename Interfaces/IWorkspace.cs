@@ -19,5 +19,10 @@ namespace api.Interfaces
         Task<Result<WorkspaceDto>> UpdateWorkspaceAsync(Guid Id, UpdateWorkspaceDto updateDto, Guid userId);
         Task<Result<bool>> DeleteWorkspaceAsync(Guid Id, Guid userId);
         Task<Result<bool>> TransferWorkspaceOwnershipAsync(Guid workspaceId, Guid currentOwnerId, Guid newOwnerId);
+
+        // workspace logo
+        Task<Result<Uri>> GetWorkspaceLogoUrlAsync(Guid workspaceId, Guid userId, CancellationToken ct);
+        Task<Result<string>> SetWorkspaceLogoAsync(Guid workspaceId, Guid userId, IFormFile file, CancellationToken ct);
+        Task<Result<bool>> DeleteWorkspaceLogoAsync(Guid workspaceId, Guid userId, CancellationToken ct);
     }
 }

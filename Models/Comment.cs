@@ -18,6 +18,7 @@ namespace api.Models
         public Guid? ParentCommentId { get; set; }
         public Comment? ParentComment { get; set; }
         public List<Comment> Replies { get; set; } = [];
+        public List<Attachment> Attachments { get; set; } = [];
         public bool IsDeleted { get; set; } = false;
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime? UpdatedAt { get; set; }
