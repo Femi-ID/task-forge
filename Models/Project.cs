@@ -15,6 +15,7 @@ namespace api.Models
          public Guid WorkspaceId { get; set; }
         public Workspace Workspace { get; set; } = null!;
         public List<TaskItem> Tasks { get; set; } = new List<TaskItem>();
+        public List<Attachment> Attachments { get; set; } = [];
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime? UpdatedAt { get; set; }
     }

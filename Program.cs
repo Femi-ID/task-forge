@@ -1,5 +1,7 @@
 using System.Text;
 using System.Text.Json.Serialization;
+using Amazon.S3;
+using api;
 using api.Data;
 using api.Interfaces;
 using api.Models;
@@ -91,6 +93,22 @@ builder.Services.AddAuthentication(options =>
     };
 });
 
+// Configure the S3 client for MinIO. ForcePathStyle is required: real AWS S3 uses
+// virtual-hosted URLs (bucket.s3.amazonaws.com), but MinIO uses path-style (localhost:9000/bucket/key).
+// Keep this on in production too if you use R2 or any other S3-compatible provider that isn't AWS itself.
+builder.Services.AddSingleton<IAmazonS3>(sp =>
+{
+    var cfg = sp.GetRequiredService<IConfiguration>();
+    var s3Config = new AmazonS3Config
+    {
+        ServiceURL = cfg["Storage:Endpoint"],
+        ForcePathStyle = true,
+        AuthenticationRegion = cfg["Storage:Region"]
+    };
+    return new AmazonS3Client(cfg["Storage:AccessKey"], cfg["Storage:SecretKey"], s3Config);
+});
+
+
 // register the services
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<ITokenService, TokenService>();
@@ -106,6 +124,13 @@ builder.Services.AddScoped<ICommentService, CommentService>();
 builder.Services.AddScoped<ILabelService, LabelService>();
 builder.Services.AddScoped<ITaskLabelService, TaskLabelService>();
 builder.Services.AddScoped<IActivityLogService, ActivityLogService>();
+builder.Services.AddScoped<IFileStorage, S3FileStorage>();
+builder.Services.AddScoped<IAttachmentService, AttachmentService>();
+
+builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(o =>
+{
+    o.MultipartBodyLengthLimit = GlobalConstants.StorageLimits.MaxFileSizeBytes;
+});
 
 var app = builder.Build();
 

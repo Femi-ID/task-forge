@@ -22,6 +22,7 @@ namespace api.Data
         public DbSet<TaskLabel> TaskLabels => Set<TaskLabel>();
         public DbSet<WorkspaceInvite> WorkspaceInvites => Set<WorkspaceInvite>();
         public DbSet<ActivityLog> ActivityLogs => Set<ActivityLog>();
+        public DbSet<Attachment> Attachments => Set<Attachment>();
 
         // FIXED values: HasData must never use Guid.NewGuid() at model-build time, otherwise
         // every `migrations add` sees "different" seed rows and generates delete+insert churn.
@@ -173,12 +174,51 @@ namespace api.Data
                 e.Property(i => i.TokenHash).HasMaxLength(128);
             });
 
+            // ActivityLog
             builder.Entity<ActivityLog>(e =>
             {
                 e.HasOne(a => a.Workspace).WithMany()
                 .HasForeignKey(a => a.WorkspaceId).OnDelete(DeleteBehavior.Cascade);
 
                 e.Property(a => a.Description).HasMaxLength(500);
+            });
+
+            // Attachments
+            builder.Entity<Attachment>(e =>
+            {
+                e.Property(a => a.OriginalFileName).HasMaxLength(255);
+                e.Property(a => a.ContentType).HasMaxLength(100);
+                e.Property(a => a.StorageKey).HasMaxLength(500);
+
+                // Scoping FK — Restrict so a workspace can't be deleted while any attachments still exist.
+                // This is also one of the two cascade paths to Attachment (the other being via Project/Task/Comment),
+                // so Restrict here avoids SQL Server error 1785.
+                e.HasOne(a => a.Workspace).WithMany()
+                    .HasForeignKey(a => a.WorkspaceId).OnDelete(DeleteBehavior.Restrict);
+
+                // Parent FKs — each Cascade individually, so deleting a project/task/comment removes its attachment rows.
+                // The FILES themselves in S3 don't auto-cascade (S3 knows nothing about SQL FKs); a Hangfire sweep job
+                // handles that separately. The database handles row cleanup; the storage provider handles blob cleanup.
+                e.HasOne(a => a.Project).WithMany(p => p.Attachments)
+                    .HasForeignKey(a => a.ProjectId).OnDelete(DeleteBehavior.Cascade);
+                e.HasOne(a => a.TaskItem).WithMany(t => t.Attachments)
+                    .HasForeignKey(a => a.TaskItemId).OnDelete(DeleteBehavior.Cascade);
+                e.HasOne(a => a.Comment).WithMany(c => c.Attachments)
+                    .HasForeignKey(a => a.CommentId).OnDelete(DeleteBehavior.Cascade);
+
+                // Partial indexes: makes "list a project's attachments" a direct index lookup, not a full table scan
+                // filtered after the fact. The "WHERE ... IS NOT NULL" is the "partial" part — the index only
+                // indexes rows where that FK is set, keeping it small since most attachments have only one of the three set.
+                e.HasIndex(a => a.ProjectId).HasFilter("[ProjectId] IS NOT NULL");
+                e.HasIndex(a => a.TaskItemId).HasFilter("[TaskItemId] IS NOT NULL");
+                e.HasIndex(a => a.CommentId).HasFilter("[CommentId] IS NOT NULL");
+
+                // CHECK constraint: exactly one of the three parent FKs is set. SQL Server treats NULL comparisons
+                // as unknown (not true/false), so we count the non-null ones using CASE and require the count = 1.
+                e.ToTable(t => t.HasCheckConstraint("CK_Attachment_OneParent",
+                    "(CASE WHEN [ProjectId] IS NOT NULL THEN 1 ELSE 0 END + " +
+                    " CASE WHEN [TaskItemId] IS NOT NULL THEN 1 ELSE 0 END + " +
+                    " CASE WHEN [CommentId] IS NOT NULL THEN 1 ELSE 0 END) = 1"));
             });
         }
 

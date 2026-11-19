@@ -15,7 +15,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace api.Services
 {
-    public class WorkspaceService(AppDbContext context) : IWorkspace, IWorkspaceAuthorization
+    public class WorkspaceService(AppDbContext context, IFileStorage storage) : IWorkspace, IWorkspaceAuthorization
     {
         private const string NameTakenMessage = "You already have a workspace with this name";
         public async Task<Result<WorkspaceDto>> CreateWorkspaceAsync(CreateWorkspaceDto dto, Guid userId)
@@ -182,7 +182,7 @@ namespace api.Services
             var isAdmin = await IsWorkspaceAdminMemberAsync(id, userId);
             if (!isAdmin) return Result<WorkspaceDto>.Failure("You are not permitted to make this request", ResultError.Forbidden);
 
-            if (!string.IsNullOrWhiteSpace(updateDto.Name.Trim()))
+            if (!string.IsNullOrWhiteSpace(updateDto.Name?.Trim()))
             {
                 var newName = updateDto.Name.Trim();
                 // names are unique per OWNER (not per requesting admin), and renaming to your own current name is fine
@@ -260,6 +260,114 @@ namespace api.Services
             var loweredName = name.ToLower();
             return context.Workspaces.AnyAsync(w =>
                 w.OwnerId == ownerId && w.Id != excludeWorkspaceId && w.Name.ToLower() == loweredName);
+        }
+
+        public async Task<Result<Uri>> GetWorkspaceLogoUrlAsync(Guid workspaceId, Guid userId, CancellationToken ct)
+        {
+            var isMember = await IsWorkspaceMemberAsync(workspaceId, userId);
+            if (!isMember) return Result<Uri>.Failure("Only workspace members can download attachments.", ResultError.Forbidden);
+
+            var workspace = await context.Workspaces.Where(w => w.Id == workspaceId).Select(w => new { w.LogoStorageKey }).FirstOrDefaultAsync(ct);
+            if (workspace is null) return Result<Uri>.Failure("Workspace not found", ResultError.NotFound);
+            if (workspace.LogoStorageKey is null) return Result<Uri>.Failure("No logo found for this workspace", ResultError.Validation);
+
+            var workspaceLogoUrl = await context.Attachments.AsNoTracking()
+                .Where(a => a.WorkspaceId == workspaceId && a.StorageKey == workspace.LogoStorageKey)
+                .Select(a => new { a.StorageKey, a.OriginalFileName })
+                .FirstOrDefaultAsync(ct); // or should i use firstAsync();
+            if (workspaceLogoUrl is null) return Result<Uri>.Failure("WorkspaceLogo attachment not found", ResultError.NotFound);
+
+            var url = await storage.GetPresignedDownloadURLAsync(
+                workspace.LogoStorageKey,
+                workspaceLogoUrl.OriginalFileName,
+                TimeSpan.FromMinutes(GlobalConstants.StorageLimits.PreSignedURLValidMinutes),
+                ct);
+
+            return Result<Uri>.Success(url);
+        }
+        public async Task<Result<string>> SetWorkspaceLogoAsync(Guid workspaceId, Guid userId, IFormFile file, CancellationToken ct)
+        {
+            var isAdminMember = await IsWorkspaceAdminMemberAsync(workspaceId, userId);
+            if (!isAdminMember) return Result<string>.Failure("Only workspace admin can set its logo.", ResultError.Forbidden);
+
+            var workspace = await context.Workspaces.FirstOrDefaultAsync(w => w.Id == workspaceId);
+            if (workspace is null) return Result<string>.Failure("Workspace not found", ResultError.NotFound);
+
+            //  Validation
+            if (file is null || file.Length == 0)
+                return Result<string>.Failure("No file uploaded.", ResultError.Validation);
+            if (file.Length > GlobalConstants.StorageLimits.MaxFileSizeBytes)
+                return Result<string>.Failure(
+                    $"File is too large. Max {GlobalConstants.StorageLimits.MaxWorkspaceLogoFileSizeBytes / (1024 * 1024)} MB.", ResultError.Validation);
+            if (!GlobalConstants.StorageLimits.AllowedWorkspaceLogoContentTypes.Contains(file.ContentType ?? string.Empty))
+                return Result<string>.Failure($"File type '{file.ContentType}' is not allowed.", ResultError.Validation);
+
+            // Build the storage key. A GUID guarantees uniqueness and is path-traversal-proof by construction.
+            var storageKey = $"workspaces/{workspaceId}/logo";
+
+            // upload the image bytes
+            using (var stream = file.OpenReadStream())
+            {
+                await storage.SaveAsync(storageKey, stream, file.ContentType!, ct);
+            }
+
+            // create new attachment instance
+            var attachment = new Attachment
+            {
+                WorkspaceId = workspaceId,
+                OriginalFileName = file.FileName,
+                ContentType = file.ContentType!,
+                SizeBytes = file.Length,
+                StorageKey = storageKey,
+                UploadedByUserId = userId
+            };
+
+            // assign the attachment to the workspace instance
+            workspace.LogoStorageKey = storageKey;
+
+            try
+            {
+                await context.Attachments.AddAsync(attachment, ct);
+                await context.SaveChangesAsync(ct);
+            }
+            catch
+            {
+                try
+                {
+                    await storage.DeleteAsync(storageKey, CancellationToken.None);
+                    workspace.LogoStorageKey = null;
+                    await context.SaveChangesAsync(ct);
+                }
+                catch { /* sweep job will get it */ }
+                throw;
+            }
+            return Result<string>.Success("what should be here");
+
+            // SetLogoAsync writes to an identifiable key like "workspaces/{id}/logo" — same key every time, 
+            // so uploading a new logo overwrites the old one in S3 automatically (no sweep job needed for logos). 
+            // Same IFileStorage interface, same validation (restrict to image/png, image/jpeg, image/webp only, 
+            // smaller size cap — 2MB is plenty for a logo). Admin-only, since it affects how the workspace appears to everyone in it.
+        }
+        public async Task<Result<bool>> DeleteWorkspaceLogoAsync(Guid workspaceId, Guid userId, CancellationToken ct)
+        {
+            var isAdminMember = await IsWorkspaceAdminMemberAsync(workspaceId, userId);
+            if (!isAdminMember) return Result<bool>.Failure("Only workspace admin can remove its logo.", ResultError.Forbidden);
+
+            var workspace = await context.Workspaces.FirstOrDefaultAsync(w => w.Id == workspaceId);
+            if (workspace is null) return Result<bool>.Failure("Workspace not found", ResultError.NotFound);
+
+            var attachment = await context.Attachments
+                .Where(a => a.WorkspaceId == workspaceId && a.StorageKey == workspace.LogoStorageKey)
+                .FirstOrDefaultAsync(ct); // or should i use firstAsync();
+            if (attachment is null) return Result<bool>.Failure("Attachment not found", ResultError.NotFound);
+
+            // Delete the DB row FIRST, then the blob. Opposite order from upload
+            context.Attachments.Remove(attachment);
+            await context.SaveChangesAsync(ct);
+            try { await storage.DeleteAsync(attachment.StorageKey, ct); }
+            catch { /* hangfire sweep job */ }
+
+            return Result<bool>.Success(true);
         }
     }
 }

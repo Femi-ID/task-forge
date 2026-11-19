@@ -289,6 +289,69 @@ namespace api.Migrations
                     b.ToTable("AspNetUsers", (string)null);
                 });
 
+            modelBuilder.Entity("api.Models.Attachment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("CommentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("OriginalFileName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<Guid?>("ProjectId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<long>("SizeBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("StorageKey")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<Guid?>("TaskItemId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("UploadedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("WorkspaceId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CommentId")
+                        .HasFilter("[CommentId] IS NOT NULL");
+
+                    b.HasIndex("ProjectId")
+                        .HasFilter("[ProjectId] IS NOT NULL");
+
+                    b.HasIndex("TaskItemId")
+                        .HasFilter("[TaskItemId] IS NOT NULL");
+
+                    b.HasIndex("UploadedByUserId");
+
+                    b.HasIndex("WorkspaceId");
+
+                    b.ToTable("Attachments", t =>
+                        {
+                            t.HasCheckConstraint("CK_Attachment_OneParent", "(CASE WHEN [ProjectId] IS NOT NULL THEN 1 ELSE 0 END +  CASE WHEN [TaskItemId] IS NOT NULL THEN 1 ELSE 0 END +  CASE WHEN [CommentId] IS NOT NULL THEN 1 ELSE 0 END) = 1");
+                        });
+                });
+
             modelBuilder.Entity("api.Models.Comment", b =>
                 {
                     b.Property<Guid>("Id")
@@ -470,6 +533,9 @@ namespace api.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
 
+                    b.Property<string>("LogoStorageKey")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -624,6 +690,46 @@ namespace api.Migrations
                     b.Navigation("Workspace");
                 });
 
+            modelBuilder.Entity("api.Models.Attachment", b =>
+                {
+                    b.HasOne("api.Models.Comment", "Comment")
+                        .WithMany("Attachments")
+                        .HasForeignKey("CommentId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("api.Models.Project", "Project")
+                        .WithMany("Attachments")
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("api.Models.TaskItem", "TaskItem")
+                        .WithMany("Attachments")
+                        .HasForeignKey("TaskItemId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("api.Models.AppUser", "UploadedByUser")
+                        .WithMany()
+                        .HasForeignKey("UploadedByUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("api.Models.Workspace", "Workspace")
+                        .WithMany()
+                        .HasForeignKey("WorkspaceId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Comment");
+
+                    b.Navigation("Project");
+
+                    b.Navigation("TaskItem");
+
+                    b.Navigation("UploadedByUser");
+
+                    b.Navigation("Workspace");
+                });
+
             modelBuilder.Entity("api.Models.Comment", b =>
                 {
                     b.HasOne("api.Models.AppUser", "Author")
@@ -771,6 +877,8 @@ namespace api.Migrations
 
             modelBuilder.Entity("api.Models.Comment", b =>
                 {
+                    b.Navigation("Attachments");
+
                     b.Navigation("Replies");
                 });
 
@@ -781,11 +889,15 @@ namespace api.Migrations
 
             modelBuilder.Entity("api.Models.Project", b =>
                 {
+                    b.Navigation("Attachments");
+
                     b.Navigation("Tasks");
                 });
 
             modelBuilder.Entity("api.Models.TaskItem", b =>
                 {
+                    b.Navigation("Attachments");
+
                     b.Navigation("Comments");
 
                     b.Navigation("TaskLabels");
