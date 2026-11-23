@@ -17,6 +17,12 @@ namespace api.Migrations
                 type: "nvarchar(max)",
                 nullable: true);
 
+            migrationBuilder.AddColumn<string>(
+                name: "OriginalFileName",
+                table: "Workspaces",
+                type: "nvarchar(max)",
+                nullable: true);
+
             migrationBuilder.CreateTable(
                 name: "Attachments",
                 columns: table => new
@@ -47,26 +53,23 @@ namespace api.Migrations
                         name: "FK_Attachments_Comments_CommentId",
                         column: x => x.CommentId,
                         principalTable: "Comments",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
+                        principalColumn: "Id");
                     table.ForeignKey(
                         name: "FK_Attachments_Projects_ProjectId",
                         column: x => x.ProjectId,
                         principalTable: "Projects",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
+                        principalColumn: "Id");
                     table.ForeignKey(
                         name: "FK_Attachments_Tasks_TaskItemId",
                         column: x => x.TaskItemId,
                         principalTable: "Tasks",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
+                        principalColumn: "Id");
                     table.ForeignKey(
                         name: "FK_Attachments_Workspaces_WorkspaceId",
                         column: x => x.WorkspaceId,
                         principalTable: "Workspaces",
                         principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
+                        onDelete: ReferentialAction.Cascade);
                 });
 
             migrationBuilder.CreateIndex(
@@ -106,6 +109,10 @@ namespace api.Migrations
 
             migrationBuilder.DropColumn(
                 name: "LogoStorageKey",
+                table: "Workspaces");
+
+            migrationBuilder.DropColumn(
+                name: "OriginalFileName",
                 table: "Workspaces");
         }
     }

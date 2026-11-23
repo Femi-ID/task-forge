@@ -42,7 +42,6 @@ namespace api.Services
 
             var workspaceDto = await context.Workspaces.AsNoTracking()
                 .Where(w => w.Id == workspaceModel.Id)
-                .Include(w => w.Owner.FullName)   // or existingWorkspaceModel.Id in Update
                 .Select(WorkspaceMappers.ToWorkspaceDto)
                 .FirstAsync();
             return Result<WorkspaceDto>.Success(workspaceDto);
@@ -267,19 +266,22 @@ namespace api.Services
             var isMember = await IsWorkspaceMemberAsync(workspaceId, userId);
             if (!isMember) return Result<Uri>.Failure("Only workspace members can download attachments.", ResultError.Forbidden);
 
-            var workspace = await context.Workspaces.Where(w => w.Id == workspaceId).Select(w => new { w.LogoStorageKey }).FirstOrDefaultAsync(ct);
+            var workspace = await context.Workspaces
+                .Where(w => w.Id == workspaceId && w.LogoStorageKey != null)
+                .Select(w => new { w.LogoStorageKey, w.OriginalFileName })
+                .FirstOrDefaultAsync(ct);
             if (workspace is null) return Result<Uri>.Failure("Workspace not found", ResultError.NotFound);
             if (workspace.LogoStorageKey is null) return Result<Uri>.Failure("No logo found for this workspace", ResultError.Validation);
 
-            var workspaceLogoUrl = await context.Attachments.AsNoTracking()
-                .Where(a => a.WorkspaceId == workspaceId && a.StorageKey == workspace.LogoStorageKey)
-                .Select(a => new { a.StorageKey, a.OriginalFileName })
-                .FirstOrDefaultAsync(ct); // or should i use firstAsync();
-            if (workspaceLogoUrl is null) return Result<Uri>.Failure("WorkspaceLogo attachment not found", ResultError.NotFound);
+            // var workspaceLogoUrl = await context.Attachments.AsNoTracking()
+            //     .Where(a => a.WorkspaceId == workspaceId && a.StorageKey == workspace.LogoStorageKey)
+            //     .Select(a => new { a.StorageKey, a.OriginalFileName })
+            //     .FirstOrDefaultAsync(ct); // or should i use firstAsync();
+            // if (workspaceLogoUrl is null) return Result<Uri>.Failure("WorkspaceLogo attachment not found", ResultError.NotFound);
 
             var url = await storage.GetPresignedDownloadURLAsync(
                 workspace.LogoStorageKey,
-                workspaceLogoUrl.OriginalFileName,
+                workspace.OriginalFileName!,
                 TimeSpan.FromMinutes(GlobalConstants.StorageLimits.PreSignedURLValidMinutes),
                 ct);
 
@@ -296,7 +298,7 @@ namespace api.Services
             //  Validation
             if (file is null || file.Length == 0)
                 return Result<string>.Failure("No file uploaded.", ResultError.Validation);
-            if (file.Length > GlobalConstants.StorageLimits.MaxFileSizeBytes)
+            if (file.Length > GlobalConstants.StorageLimits.MaxWorkspaceLogoFileSizeBytes)
                 return Result<string>.Failure(
                     $"File is too large. Max {GlobalConstants.StorageLimits.MaxWorkspaceLogoFileSizeBytes / (1024 * 1024)} MB.", ResultError.Validation);
             if (!GlobalConstants.StorageLimits.AllowedWorkspaceLogoContentTypes.Contains(file.ContentType ?? string.Empty))
@@ -312,22 +314,22 @@ namespace api.Services
             }
 
             // create new attachment instance
-            var attachment = new Attachment
-            {
-                WorkspaceId = workspaceId,
-                OriginalFileName = file.FileName,
-                ContentType = file.ContentType!,
-                SizeBytes = file.Length,
-                StorageKey = storageKey,
-                UploadedByUserId = userId
-            };
-
-            // assign the attachment to the workspace instance
-            workspace.LogoStorageKey = storageKey;
+            // var attachment = new Attachment
+            // {
+            //     WorkspaceId = workspaceId,
+            //     OriginalFileName = file.FileName,
+            //     ContentType = file.ContentType!,
+            //     SizeBytes = file.Length,
+            //     StorageKey = storageKey,
+            //     UploadedByUserId = userId
+            // };
+            // await context.Attachments.AddAsync(attachment, ct);
 
             try
             {
-                await context.Attachments.AddAsync(attachment, ct);
+                // assign the attachment to the workspace instance
+                workspace.LogoStorageKey = storageKey;
+                workspace.OriginalFileName = file.FileName;
                 await context.SaveChangesAsync(ct);
             }
             catch
@@ -339,9 +341,15 @@ namespace api.Services
                     await context.SaveChangesAsync(ct);
                 }
                 catch { /* sweep job will get it */ }
-                throw;
+                Result<string>.Failure("Could not successfully set the workspace logo.", ResultError.None);
             }
-            return Result<string>.Success("what should be here");
+
+            var url = await storage.GetPresignedDownloadURLAsync(
+                storageKey,
+                file.FileName,
+                TimeSpan.FromMinutes(GlobalConstants.StorageLimits.PreSignedURLValidMinutes),
+                ct);
+            return Result<string>.Success(url.ToString());
 
             // SetLogoAsync writes to an identifiable key like "workspaces/{id}/logo" — same key every time, 
             // so uploading a new logo overwrites the old one in S3 automatically (no sweep job needed for logos). 
@@ -355,16 +363,14 @@ namespace api.Services
 
             var workspace = await context.Workspaces.FirstOrDefaultAsync(w => w.Id == workspaceId);
             if (workspace is null) return Result<bool>.Failure("Workspace not found", ResultError.NotFound);
-
-            var attachment = await context.Attachments
-                .Where(a => a.WorkspaceId == workspaceId && a.StorageKey == workspace.LogoStorageKey)
-                .FirstOrDefaultAsync(ct); // or should i use firstAsync();
-            if (attachment is null) return Result<bool>.Failure("Attachment not found", ResultError.NotFound);
+            if (workspace.LogoStorageKey is null) return Result<bool>.Failure("No logo found for this workspace", ResultError.Validation);
 
             // Delete the DB row FIRST, then the blob. Opposite order from upload
-            context.Attachments.Remove(attachment);
+            var storageKey = workspace.LogoStorageKey;
+            workspace.LogoStorageKey = null;
             await context.SaveChangesAsync(ct);
-            try { await storage.DeleteAsync(attachment.StorageKey, ct); }
+            
+            try { await storage.DeleteAsync(storageKey, ct); }
             catch { /* hangfire sweep job */ }
 
             return Result<bool>.Success(true);

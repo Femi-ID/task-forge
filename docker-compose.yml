@@ -1,13 +1,50 @@
-minio:
-  image: minio/minio
-  ports:
-    - "9000:9000"   # S3 API port — what your .NET code talks to
-    - "9001:9001"   # web console — browser UI for poking at buckets
-  environment:
-    MINIO_ROOT_USER: minioadmin
-    MINIO_ROOT_PASSWORD: minioadmin
-  command: server /data --console-address ":9001"
-  volumes:
-    - minio-data:/data
+services:
+  seaweedfs:
+    image: chrislusf/seaweedfs:latest
+    container_name: taskforge-s3
+    ports:
+      - "8333:8333"   # S3 API — what your .NET code hits
+      - "8888:8888"   # filer (optional, handy for debugging)
+      - "9333:9333"   # master UI (optional)
+    command: mini -dir=/data
+    environment:
+      AWS_ACCESS_KEY_ID: minioadmin
+      AWS_SECRET_ACCESS_KEY: minioadmin
+      S3_BUCKET: taskforge-attachments
+    volumes:
+      - seaweedfs-data:/data
+
 volumes:
-  minio-data:
+  seaweedfs-data:
+
+
+
+# services:
+#   minio:
+#     image: minio/minio:latest
+#     container_name: taskforge-minio
+#     ports:
+#       - "9000:9000"   # S3 API — what your .NET code hits
+#       - "9001:9001"   # web console — browser UI
+#     environment:
+#       MINIO_ROOT_USER: minioadmin
+#       MINIO_ROOT_PASSWORD: minioadmin
+#     command: server /data --console-address ":9001"
+#     volumes:
+#       - minio-data:/data
+
+#   # Optional: bucket auto-creation on first startup, so you don't have to click through the UI
+#   minio-setup:
+#     image: minio/mc:latest 
+#     depends_on:
+#       - minio
+#     entrypoint: >
+#       /bin/sh -c "
+#       sleep 5;
+#       /usr/bin/mc alias set local http://minio:9000 minioadmin minioadmin;
+#       /usr/bin/mc mb --ignore-existing local/taskforge-attachments;
+#       exit 0;
+#       "
+
+# volumes:
+#   minio-data:

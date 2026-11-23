@@ -194,17 +194,17 @@ namespace api.Data
                 // This is also one of the two cascade paths to Attachment (the other being via Project/Task/Comment),
                 // so Restrict here avoids SQL Server error 1785.
                 e.HasOne(a => a.Workspace).WithMany()
-                    .HasForeignKey(a => a.WorkspaceId).OnDelete(DeleteBehavior.Restrict);
+                    .HasForeignKey(a => a.WorkspaceId).OnDelete(DeleteBehavior.Cascade);
 
                 // Parent FKs — each Cascade individually, so deleting a project/task/comment removes its attachment rows.
                 // The FILES themselves in S3 don't auto-cascade (S3 knows nothing about SQL FKs); a Hangfire sweep job
                 // handles that separately. The database handles row cleanup; the storage provider handles blob cleanup.
                 e.HasOne(a => a.Project).WithMany(p => p.Attachments)
-                    .HasForeignKey(a => a.ProjectId).OnDelete(DeleteBehavior.Cascade);
+                    .HasForeignKey(a => a.ProjectId).OnDelete(DeleteBehavior.NoAction);
                 e.HasOne(a => a.TaskItem).WithMany(t => t.Attachments)
-                    .HasForeignKey(a => a.TaskItemId).OnDelete(DeleteBehavior.Cascade);
+                    .HasForeignKey(a => a.TaskItemId).OnDelete(DeleteBehavior.NoAction);
                 e.HasOne(a => a.Comment).WithMany(c => c.Attachments)
-                    .HasForeignKey(a => a.CommentId).OnDelete(DeleteBehavior.Cascade);
+                    .HasForeignKey(a => a.CommentId).OnDelete(DeleteBehavior.NoAction);
 
                 // Partial indexes: makes "list a project's attachments" a direct index lookup, not a full table scan
                 // filtered after the fact. The "WHERE ... IS NOT NULL" is the "partial" part — the index only
