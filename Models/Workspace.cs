@@ -17,6 +17,7 @@ namespace api.Models
         public List<Label> Labels { get; set; } = [];  
         public List<WorkspaceInvite> WorkspaceInvites { get; set; } = new List<WorkspaceInvite>();
         public string? LogoStorageKey { get; set; }
+        public string? OriginalFileName { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime? UpdatedAt { get; set; }
     }

@@ -12,7 +12,7 @@ using api.Data;
 namespace api.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20261119103117_AddAttachmentsAndWorkspaceLogo")]
+    [Migration("20261119152756_AddAttachmentsAndWorkspaceLogo")]
     partial class AddAttachmentsAndWorkspaceLogo
     {
         /// <inheritdoc />
@@ -544,6 +544,9 @@ namespace api.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<string>("OriginalFileName")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<Guid>("OwnerId")
                         .HasColumnType("uniqueidentifier");
 
@@ -698,20 +701,20 @@ namespace api.Migrations
                     b.HasOne("api.Models.Comment", "Comment")
                         .WithMany("Attachments")
                         .HasForeignKey("CommentId")
-                        .OnDelete(DeleteBehavior.Cascade);
+                        .OnDelete(DeleteBehavior.NoAction);
 
                     b.HasOne("api.Models.Project", "Project")
                         .WithMany("Attachments")
                         .HasForeignKey("ProjectId")
-                        .OnDelete(DeleteBehavior.Cascade);
+                        .OnDelete(DeleteBehavior.NoAction);
 
                     b.HasOne("api.Models.TaskItem", "TaskItem")
                         .WithMany("Attachments")
                         .HasForeignKey("TaskItemId")
-                        .OnDelete(DeleteBehavior.Cascade);
+                        .OnDelete(DeleteBehavior.NoAction);
 
                     b.HasOne("api.Models.AppUser", "UploadedByUser")
-                        .WithMany()
+                        .WithMany("Attachments")
                         .HasForeignKey("UploadedByUserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -719,7 +722,7 @@ namespace api.Migrations
                     b.HasOne("api.Models.Workspace", "Workspace")
                         .WithMany()
                         .HasForeignKey("WorkspaceId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.Navigation("Comment");
@@ -870,6 +873,8 @@ namespace api.Migrations
             modelBuilder.Entity("api.Models.AppUser", b =>
                 {
                     b.Navigation("AssignedTasks");
+
+                    b.Navigation("Attachments");
 
                     b.Navigation("Comments");
 

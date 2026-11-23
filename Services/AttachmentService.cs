@@ -22,7 +22,8 @@ namespace api.Services
     public class AttachmentService(
         AppDbContext context,
         IWorkspaceAuthorization workspaceAuth,
-        IFileStorage storage) : IAttachmentService
+        IFileStorage storage,
+        IActivityLogService activityLog) : IAttachmentService
     {
         public async Task<Result<AttachmentResponseDto>> UploadAsync(
             Guid workspaceId, AttachmentOwnerType ownerType, Guid ownerId, Guid userId,
@@ -85,6 +86,10 @@ namespace api.Services
             try
             {
                 await context.Attachments.AddAsync(attachment, ct);
+                var (parentLabel, parentName) = await ResolveParentDisplayAsync(attachment, ct);
+                var workspaceName = await GetWorkspaceNameAsync(workspaceId, ct);
+                await activityLog.LogAsync(workspaceId, userId, "attachment.uploaded",
+                    $"uploaded media file '{attachment.OriginalFileName}' to {parentLabel} '{parentName}' in Workspace: '{workspaceName}'");
                 await context.SaveChangesAsync(ct);
             }
             catch
@@ -187,11 +192,39 @@ namespace api.Services
             // via sweep), not an orphan row (which would make the UI show a "download" button for a file
             // that no longer exists on S3).
             context.Attachments.Remove(attachment);
+            var (parentLabel, parentName) = await ResolveParentDisplayAsync(attachment, ct);
+            var workspaceName = await GetWorkspaceNameAsync(workspaceId, ct);
+            await activityLog.LogAsync(workspaceId, userId, "attachment.deleted",
+                    $"deleted media file '{attachment.OriginalFileName}' from {parentLabel} '{parentName}' in Workspace: '{workspaceName}'");
+
             await context.SaveChangesAsync(ct);
             try { await storage.DeleteAsync(attachment.StorageKey, ct); }
             catch { /* hangfire sweep job */ }
 
             return Result<bool>.Success(true);
         }
+
+        // helper methods
+        private async Task<(string ParentLabel, string ParentName)> ResolveParentDisplayAsync(Attachment attachment, CancellationToken ct)
+        {
+            // One scalar query per call. The .Select narrows the SQL to a single string column, not a full row.
+            if (attachment.ProjectId.HasValue)
+            {
+                var name = await context.Projects.Where(p => p.Id == attachment.ProjectId.Value).Select(p => p.Name).FirstAsync(ct);
+                return ("project", name);
+            }
+            if (attachment.TaskItemId.HasValue)
+            {
+                var title = await context.Tasks.Where(t => t.Id == attachment.TaskItemId.Value).Select(t => t.Title).FirstAsync(ct);
+                return ("task", title);
+            }
+            // At this point it must be a comment, since the CHECK constraint guarantees exactly one FK is set.
+            var content = await context.Comments.Where(c => c.Id == attachment.CommentId!.Value).Select(c => c.Content).FirstAsync(ct);
+            var preview = content.Length > 40 ? content[..40] + "…" : content;
+            return ("comment", $"\"{preview}\"");
+        }
+
+        private Task<string> GetWorkspaceNameAsync(Guid workspaceId, CancellationToken ct) =>
+            context.Workspaces.Where(w => w.Id == workspaceId).Select(w => w.Name).FirstAsync(ct);
     }
 }
