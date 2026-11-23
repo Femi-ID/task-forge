@@ -101,7 +101,7 @@ namespace api.Services
                 {
                     await storage.DeleteAsync(storageKey, CancellationToken.None);
                     context.Attachments.Remove(attachment);
-                    await context.SaveChangesAsync(ct);
+                    await context.SaveChangesAsync(CancellationToken.None);
                 }
                 catch { /* sweep job will get it */ }
                 throw;

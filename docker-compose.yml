@@ -3,16 +3,13 @@ services:
     image: chrislusf/seaweedfs:latest
     container_name: taskforge-s3
     ports:
-      - "8333:8333"   # S3 API — what your .NET code hits
+      - "8333:8333"   # S3 API — what the .NET application code hits
       - "8888:8888"   # filer (optional, handy for debugging)
       - "9333:9333"   # master UI (optional)
-    command: mini -dir=/data
-    environment:
-      AWS_ACCESS_KEY_ID: minioadmin
-      AWS_SECRET_ACCESS_KEY: minioadmin
-      S3_BUCKET: taskforge-attachments
+    command: server -dir=/data -s3 -s3.config=/config/s3.json
     volumes:
       - seaweedfs-data:/data
+      - ./seaweedfs-config:/config:ro
 
 volumes:
   seaweedfs-data:

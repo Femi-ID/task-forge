@@ -203,7 +203,6 @@ namespace api.Services
 
             var workspaceDto = await context.Workspaces.AsNoTracking()
                 .Where(w => w.Id == existingWorkspaceModel.Id)
-                .Include(w => w.Owner.FullName)
                 .Select(WorkspaceMappers.ToWorkspaceDto)
                 .FirstAsync();
             return Result<WorkspaceDto>.Success(workspaceDto);
@@ -341,7 +340,7 @@ namespace api.Services
                     await context.SaveChangesAsync(ct);
                 }
                 catch { /* sweep job will get it */ }
-                Result<string>.Failure("Could not successfully set the workspace logo.", ResultError.None);
+                return Result<string>.Failure("Could not successfully set the workspace logo.", ResultError.Validation);
             }
 
             var url = await storage.GetPresignedDownloadURLAsync(
